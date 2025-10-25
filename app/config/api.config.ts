@@ -1,4 +1,4 @@
 // @ts-nocheck
 export const API_CONFIG = {
-  baseUrl: 'http://localhost:3001/api',
+  baseUrl: 'https://khaya-server.vercel.app/api',
 } as const; 

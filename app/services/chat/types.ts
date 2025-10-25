@@ -5,6 +5,9 @@ export interface ChatParticipant {
   lastName: string;
   email: string;
   role: string;
+  profile?: {
+    avatar?: string;
+  };
 }
 
 export interface Property {
