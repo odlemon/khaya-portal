@@ -584,10 +584,9 @@ export default function MessagesPage() {
                       </div>
                     ) : (
                       messages.map((msg, index) => {
-                        // Determine if message is from current user (landlord/admin)
-                        // Messages from tenant should always be on the left (justify-start)
-                        // Messages from landlord/admin should be on the right (justify-end)
-                        const isFromCurrentUser = msg.senderRole === 'landlord' || msg.senderRole === 'admin';
+                        // Determine message position based on sender role
+                        // Admin messages appear on the right, all others on the left
+                        const isFromCurrentUser = msg.senderRole === 'admin';
                         
                         return (
                           <div
