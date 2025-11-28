@@ -145,7 +145,7 @@ interface ChatState {
 1. **HTTP Messages**: Loaded via REST API on chat selection
 2. **Real-time Messages**: Added via Socket.IO events
 3. **Duplicate Prevention**: Check message ID before adding
-4. **State Updates**: Both current chat and chat list updated
+4. **State Updates**: Both c  urrent chat and chat list updated
 
 ## Authentication Integration
 

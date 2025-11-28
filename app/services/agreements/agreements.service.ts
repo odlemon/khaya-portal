@@ -106,7 +106,81 @@ export function useAgreementsService() {
     }
   }, [fetchWithAuth]);
 
+  const getConnectedParties = useCallback(async (): Promise<any | null> => {
+    try {
+      const res = await fetchWithAuth(`${API_CONFIG.baseUrl}/agreements/connected-parties`, {
+        headers: {
+          'Accept': 'application/json',
+        }
+      });
+      if (!res.ok) {
+        throw new Error(`Failed to fetch connected parties: ${res.status} ${res.statusText}`);
+      }
+      const data = await res.json();
+      return data;
+    } catch (e) {
+      if (e instanceof Error && e.message.includes('Authentication is still loading')) {
+        return null;
+      }
+      console.error('Error fetching connected parties:', e);
+      return null;
+    }
+  }, [fetchWithAuth]);
+
+  const createAgreement = useCallback(async (agreementData: any): Promise<any | null> => {
+    try {
+      const res = await fetchWithAuth(`${API_CONFIG.baseUrl}/agreements`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(agreementData),
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.message || `Failed to create agreement: ${res.status} ${res.statusText}`);
+      }
+      const data = await res.json();
+      return data;
+    } catch (e) {
+      if (e instanceof Error && e.message.includes('Authentication is still loading')) {
+        return null;
+      }
+      console.error('Error creating agreement:', e);
+      throw e;
+    }
+  }, [fetchWithAuth]);
+
+  const createAgreementFromTemplate = useCallback(async (templateData: any): Promise<any | null> => {
+    try {
+      const res = await fetchWithAuth(`${API_CONFIG.baseUrl}/agreements/from-template`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(templateData),
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.message || `Failed to create agreement from template: ${res.status} ${res.statusText}`);
+      }
+      const data = await res.json();
+      return data;
+    } catch (e) {
+      if (e instanceof Error && e.message.includes('Authentication is still loading')) {
+        return null;
+      }
+      console.error('Error creating agreement from template:', e);
+      throw e;
+    }
+  }, [fetchWithAuth]);
+
   return useMemo(() => ({
     getAgreements,
-  }), [getAgreements]);
+    getConnectedParties,
+    createAgreement,
+    createAgreementFromTemplate,
+  }), [getAgreements, getConnectedParties, createAgreement, createAgreementFromTemplate]);
 }

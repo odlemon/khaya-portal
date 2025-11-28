@@ -24,6 +24,7 @@ interface DocumentInfo {
   type: string;
   uploadedAt: string;
   verified: boolean;
+  selfieUrl?: string;
 }
 
 interface DocumentUrls {
@@ -163,6 +164,64 @@ export default function IncomingRequestsPage() {
       month: 'short',
       day: 'numeric'
     });
+  };
+
+  const getFileType = (url: string): 'image' | 'pdf' | 'docx' | 'other' => {
+    const lowerUrl = url.toLowerCase();
+    if (lowerUrl.includes('.pdf')) return 'pdf';
+    if (lowerUrl.includes('.docx') || lowerUrl.includes('.doc')) return 'docx';
+    if (lowerUrl.match(/\.(jpg|jpeg|png|gif|webp|bmp)$/)) return 'image';
+    return 'other';
+  };
+
+  const renderIDPreview = (url: string, alt: string) => {
+    const fileType = getFileType(url);
+    
+    if (fileType === 'image') {
+      return (
+        <div className="relative aspect-[4/3] bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
+          <img
+            src={url}
+            alt={alt}
+            className="w-full h-full object-contain"
+          />
+        </div>
+      );
+    } else if (fileType === 'pdf') {
+      return (
+        <div className="relative aspect-[4/3] bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
+          <iframe
+            src={url}
+            className="w-full h-full"
+            title={alt}
+          />
+        </div>
+      );
+    } else {
+      // DOCX or other formats - show placeholder
+      return (
+        <div className="relative aspect-[4/3] bg-gray-100 rounded-lg overflow-hidden border border-gray-200 flex items-center justify-center">
+          <div className="text-center p-4">
+            <FileText className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+            <p className="text-sm text-gray-600 font-medium">Document</p>
+            <p className="text-xs text-gray-500 mt-1">Click download to view</p>
+          </div>
+        </div>
+      );
+    }
+  };
+
+  const renderSelfiePreview = (url: string, alt: string) => {
+    // Selfie is always an image
+    return (
+      <div className="relative aspect-[4/3] bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
+        <img
+          src={url}
+          alt={alt}
+          className="w-full h-full object-contain"
+        />
+      </div>
+    );
   };
 
   const getStatusColor = (status: string) => {
@@ -565,20 +624,103 @@ export default function IncomingRequestsPage() {
                   <h4 className="text-lg font-semibold text-gray-900 mb-4">Submitted Documents</h4>
                   <div className="space-y-3">
                     {selectedRequest.documents.idDocument?.url && (
-                      <div className="flex items-center justify-between p-3 bg-white rounded-xl">
-                        <div className="flex items-center gap-3">
+                      <div className="p-3 bg-white rounded-xl">
+                        <div className="flex items-center gap-3 mb-3">
                           <FileText className="w-5 h-5 text-blue-500" />
                           <span className="font-medium text-gray-900">ID Document ({selectedRequest.documents.idDocument.type})</span>
                         </div>
-                        <a
-                          href={selectedRequest.documents.idDocument.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-2 px-3 py-1 bg-blue-100 text-blue-700 text-sm font-medium rounded-lg hover:bg-blue-200 transition-colors duration-200"
-                        >
-                          <Download className="w-4 h-4" />
-                          View
-                        </a>
+                        {selectedRequest.documents.idDocument.selfieUrl ? (
+                          (() => {
+                            const idFileType = getFileType(selectedRequest.documents.idDocument.url);
+                            const canShowSideBySide = idFileType === 'image' || idFileType === 'pdf';
+                            
+                            if (canShowSideBySide) {
+                              // Show ID and selfie side by side
+                              return (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <div className="space-y-2">
+                                    <p className="text-sm font-medium text-gray-700">ID Document</p>
+                                    {renderIDPreview(selectedRequest.documents.idDocument.url, 'ID Document')}
+                                    <a
+                                      href={selectedRequest.documents.idDocument.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-2 px-3 py-1 bg-blue-100 text-blue-700 text-sm font-medium rounded-lg hover:bg-blue-200 transition-colors duration-200 w-full justify-center"
+                                    >
+                                      <Download className="w-4 h-4" />
+                                      Download ID
+                                    </a>
+                                  </div>
+                                  <div className="space-y-2">
+                                    <p className="text-sm font-medium text-gray-700">Selfie</p>
+                                    {renderSelfiePreview(selectedRequest.documents.idDocument.selfieUrl, 'Selfie')}
+                                    <a
+                                      href={selectedRequest.documents.idDocument.selfieUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-2 px-3 py-1 bg-green-100 text-green-700 text-sm font-medium rounded-lg hover:bg-green-200 transition-colors duration-200 w-full justify-center"
+                                    >
+                                      <Download className="w-4 h-4" />
+                                      Download Selfie
+                                    </a>
+                                  </div>
+                                </div>
+                              );
+                            } else {
+                              // ID is DOCX or other format - show selfie and ID download separately
+                              return (
+                                <div className="space-y-4">
+                                  <div className="space-y-2">
+                                    <p className="text-sm font-medium text-gray-700">Selfie</p>
+                                    {renderSelfiePreview(selectedRequest.documents.idDocument.selfieUrl, 'Selfie')}
+                                    <a
+                                      href={selectedRequest.documents.idDocument.selfieUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-2 px-3 py-1 bg-green-100 text-green-700 text-sm font-medium rounded-lg hover:bg-green-200 transition-colors duration-200 w-full justify-center"
+                                    >
+                                      <Download className="w-4 h-4" />
+                                      Download Selfie
+                                    </a>
+                                  </div>
+                                  <div className="space-y-2">
+                                    <p className="text-sm font-medium text-gray-700">ID Document</p>
+                                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+                                      <div className="flex items-center gap-3">
+                                        <FileText className="w-5 h-5 text-blue-500" />
+                                        <span className="text-sm text-gray-700">ID Document ({idFileType.toUpperCase()})</span>
+                                      </div>
+                                      <a
+                                        href={selectedRequest.documents.idDocument.url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-2 px-3 py-1 bg-blue-100 text-blue-700 text-sm font-medium rounded-lg hover:bg-blue-200 transition-colors duration-200"
+                                      >
+                                        <Download className="w-4 h-4" />
+                                        Download ID
+                                      </a>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            }
+                          })()
+                        ) : (
+                          <div className="flex items-center justify-between gap-4">
+                            <div className="flex-1 max-w-md">
+                              {renderIDPreview(selectedRequest.documents.idDocument.url, 'ID Document')}
+                            </div>
+                            <a
+                              href={selectedRequest.documents.idDocument.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-2 px-3 py-1 bg-blue-100 text-blue-700 text-sm font-medium rounded-lg hover:bg-blue-200 transition-colors duration-200"
+                            >
+                              <Download className="w-4 h-4" />
+                              View
+                            </a>
+                          </div>
+                        )}
                       </div>
                     )}
                     {selectedRequest.documents.payslips?.urls?.length > 0 && (

@@ -100,10 +100,10 @@ export default function EarningsPage() {
         'Amount': payment.totalAmount,
         'Payment Method': getPaymentMethodDisplay(payment.paymentMethod),
         'Status': payment.status,
-        'Landlord': `${payment.landlordId.firstName} ${payment.landlordId.lastName}`,
-        'Landlord Email': payment.landlordId.email,
-        'Tenant': `${payment.tenantId.firstName} ${payment.tenantId.lastName}`,
-        'Tenant Email': payment.tenantId.email,
+        'Landlord': payment.landlordId ? `${payment.landlordId.firstName || ''} ${payment.landlordId.lastName || ''}`.trim() : 'N/A',
+        'Landlord Email': payment.landlordId?.email || 'N/A',
+        'Tenant': payment.tenantId ? `${payment.tenantId.firstName || ''} ${payment.tenantId.lastName || ''}`.trim() : 'N/A',
+        'Tenant Email': payment.tenantId?.email || 'N/A',
         'Property': payment.propertyId.title,
         'Commission': payment.khayalamiCommission,
         'Commission %': payment.commissionPercentage,
@@ -177,11 +177,11 @@ export default function EarningsPage() {
 
   const filteredPayments = earningsData?.data.payments.filter(payment => {
     const matchesSearch = 
-      payment.landlordId.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      payment.landlordId.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      payment.tenantId.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      payment.tenantId.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      payment.receiptNumber.toLowerCase().includes(searchTerm.toLowerCase());
+      (payment.landlordId?.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
+      (payment.landlordId?.lastName?.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
+      (payment.tenantId?.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
+      (payment.tenantId?.lastName?.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
+      (payment.receiptNumber?.toLowerCase().includes(searchTerm.toLowerCase()) || false);
     
     const matchesStatus = filterStatus === 'all' || payment.status === filterStatus;
     
@@ -440,7 +440,7 @@ export default function EarningsPage() {
                             </div>
                             <div>
                               <p className="text-sm font-medium text-gray-900">
-                                {payment.landlordId.firstName} {payment.landlordId.lastName}
+                                {payment.landlordId ? `${payment.landlordId.firstName || ''} ${payment.landlordId.lastName || ''}`.trim() || 'N/A' : 'N/A'}
                               </p>
                               <p className="text-xs text-gray-500">Landlord</p>
                             </div>
@@ -452,7 +452,7 @@ export default function EarningsPage() {
                             </div>
                             <div>
                               <p className="text-sm font-medium text-gray-900">
-                                {payment.tenantId.firstName} {payment.tenantId.lastName}
+                                {payment.tenantId ? `${payment.tenantId.firstName || ''} ${payment.tenantId.lastName || ''}`.trim() || 'N/A' : 'N/A'}
                               </p>
                               <p className="text-xs text-gray-500">Tenant</p>
                             </div>
@@ -572,11 +572,11 @@ export default function EarningsPage() {
                       </div>
                       <div>
                         <p className="font-medium text-gray-900">Landlord</p>
-                        <p className="text-sm text-gray-500">{selectedPayment.landlordId.email}</p>
+                        <p className="text-sm text-gray-500">{selectedPayment.landlordId?.email || 'N/A'}</p>
                       </div>
                     </div>
                     <p className="text-sm font-medium text-gray-900">
-                      {selectedPayment.landlordId.firstName} {selectedPayment.landlordId.lastName}
+                      {selectedPayment.landlordId ? `${selectedPayment.landlordId.firstName || ''} ${selectedPayment.landlordId.lastName || ''}`.trim() || 'N/A' : 'N/A'}
                     </p>
                   </div>
 
@@ -587,11 +587,11 @@ export default function EarningsPage() {
                       </div>
                       <div>
                         <p className="font-medium text-gray-900">Tenant</p>
-                        <p className="text-sm text-gray-500">{selectedPayment.tenantId.email}</p>
+                        <p className="text-sm text-gray-500">{selectedPayment.tenantId?.email || 'N/A'}</p>
                       </div>
                     </div>
                     <p className="text-sm font-medium text-gray-900">
-                      {selectedPayment.tenantId.firstName} {selectedPayment.tenantId.lastName}
+                      {selectedPayment.tenantId ? `${selectedPayment.tenantId.firstName || ''} ${selectedPayment.tenantId.lastName || ''}`.trim() || 'N/A' : 'N/A'}
                     </p>
                   </div>
                 </div>
