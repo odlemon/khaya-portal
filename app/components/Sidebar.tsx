@@ -54,7 +54,7 @@ const menuItems = [
     icon: "M12 8c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 10c-4.41 0-8-1.79-8-4V6c0-2.21 3.59-4 8-4s8 1.79 8 4v8c0 2.21-3.59 4-8 4z",
   },
   {
-    name: "Incoming Requests",
+    name: "Document Verifications",
     path: "/incoming-requests",
     permission: "view_verification_requests",
     icon: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z",
@@ -67,7 +67,7 @@ const menuItems = [
   },
   // Communication
   {
-    name: "Messages",
+    name: "Khayachats",
     path: "/messages",
     permission: "view_chats",
     icon: "M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z",
@@ -174,8 +174,9 @@ const getSidebarIcon = (name: string) => {
     case 'Agreements': return sidebarIcons.agreements;
     case 'Payments': return sidebarIcons.payments;
     case 'Earnings': return sidebarIcons.earnings;
-    case 'Incoming Requests': return sidebarIcons.incomingRequests;
+    case 'Document Verifications': return sidebarIcons.incomingRequests;
     case 'Escrow': return sidebarIcons.escrow;
+    case 'Khayachats': return sidebarIcons.messages;
     case 'Messages': return sidebarIcons.messages;
     case 'Vendors': return sidebarIcons.vendors;
     case 'Maintenance': return sidebarIcons.maintenance;
@@ -385,7 +386,7 @@ export default function Sidebar() {
                 <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Payments</h3>
               </div>
               <div className="space-y-1">
-                {menuItems.slice(5, 8).map((item) => {
+                {menuItems.slice(5, 7).map((item) => {
                   return (
                     <button
                       key={item.path}
@@ -474,6 +475,40 @@ export default function Sidebar() {
                     pathname === menuItems[9].path || pathname?.startsWith('/chats') ? 'text-blue-600' : 'text-gray-500'
                   }`}>
                     {navigating === menuItems[9].path ? (
+                      <svg className="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                    ) : (
+                      getSidebarIcon(menuItems[9].name)
+                    )}
+                  </div>
+                  {menuItems[9].name}
+                </button>
+              </div>
+            </div>
+
+            {/* Verifications section */}
+            <div>
+              <div className="px-3 py-2 mb-2">
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Verifications</h3>
+              </div>
+              <div className="space-y-1">
+                <button
+                  onClick={() => handleNavigation(menuItems[7].path)}
+                  onMouseEnter={() => handleMouseEnter(menuItems[7].path)}
+                  disabled={navigating === menuItems[7].path}
+                  className={`w-full flex items-center px-3 py-2.5 text-sm rounded-xl transition-all duration-200 ${
+                    pathname === menuItems[7].path
+                      ? 'bg-blue-50 text-blue-600 font-medium'
+                      : navigating === menuItems[7].path
+                      ? 'bg-gray-50 text-gray-600'
+                      : 'text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  <div className={`w-5 h-5 mr-3 ${
+                    pathname === menuItems[7].path ? 'text-blue-600' : 'text-gray-500'
+                  }`}>
+                    {navigating === menuItems[7].path ? (
                       <svg className="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                       </svg>
