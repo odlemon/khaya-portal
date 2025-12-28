@@ -4,6 +4,9 @@
 import { useState, useEffect } from 'react';
 import { usePropertiesService, type Property } from '../../services/properties/properties.service';
 import { useAuth } from '../../context/AuthContext';
+import { useFetchWithAuth } from '../../context/fetchWithAuth';
+import { API_CONFIG } from '../../config/api.config';
+import { FileText, Download, CheckCircle } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,9 +21,12 @@ export default function PropertiesPage() {
   const [totalProperties, setTotalProperties] = useState(0);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [showImageDialog, setShowImageDialog] = useState(false);
+  const [activeTab, setActiveTab] = useState<'images' | 'documents'>('images');
+  const [actionLoading, setActionLoading] = useState(false);
   
   const { getProperties } = usePropertiesService();
   const { loading: authLoading } = useAuth();
+  const fetchWithAuth = useFetchWithAuth();
 
   useEffect(() => {
     // Don't make API calls while auth is loading
@@ -88,14 +94,50 @@ export default function PropertiesPage() {
     }).format(price);
   };
 
+  const handleVerifyProperty = async () => {
+    if (!selectedProperty) return;
+    try {
+      setActionLoading(true);
+      setError(null);
+      const response = await fetchWithAuth(`${API_CONFIG.baseUrl}/properties/admin/${selectedProperty._id}/verify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      const data = await response.json();
+      if (response.ok && data.success) {
+        // Update the property in the list
+        setAllProperties(prev => prev.map(p => 
+          p._id === selectedProperty._id 
+            ? { ...p, isVerified: true, verificationStatus: 'verified' }
+            : p
+        ));
+        // Update selected property
+        setSelectedProperty(prev => prev ? { ...prev, isVerified: true, verificationStatus: 'verified' } : null);
+      } else {
+        setError(data.message || 'Failed to verify property');
+      }
+    } catch (err) {
+      console.error('Error verifying property:', err);
+      setError(err instanceof Error ? err.message : 'Failed to verify property');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const handlePropertyClick = (property: Property) => {
     setSelectedProperty(property);
     setShowImageDialog(true);
+    setActiveTab('images');
   };
 
   const closeImageDialog = () => {
     setShowImageDialog(false);
     setSelectedProperty(null);
+    setActiveTab('images');
+    setError(null);
   };
 
   if (loading) {
@@ -293,7 +335,7 @@ export default function PropertiesPage() {
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
               <div>
                 <h2 className="text-xl font-semibold text-gray-900">
-                  {selectedProperty.title || 'Property Images'}
+                  {selectedProperty.title || 'Property Details'}
                 </h2>
                 <p className="text-sm text-gray-500 mt-1">
                   {selectedProperty.address?.city}, {selectedProperty.address?.state}
@@ -309,8 +351,33 @@ export default function PropertiesPage() {
               </button>
             </div>
 
+            {/* Tabs */}
+            <div className="flex border-b border-gray-200 px-6">
+              <button
+                onClick={() => setActiveTab('images')}
+                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === 'images'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Images
+              </button>
+              <button
+                onClick={() => setActiveTab('documents')}
+                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === 'documents'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Documents
+              </button>
+            </div>
+
             {/* Dialog Content */}
             <div className="p-6 max-h-[70vh] overflow-y-auto">
+              {activeTab === 'images' ? (
               <div className="space-y-6">
                 {/* Main Image */}
                 {selectedProperty.images?.mainImage && (
@@ -388,6 +455,87 @@ export default function PropertiesPage() {
                   </div>
                 )}
               </div>
+              ) : (
+              <div className="space-y-4">
+                {/* Verification Status */}
+                {selectedProperty && (
+                  <div className={`p-4 rounded-xl border ${
+                    (selectedProperty as any).isVerified 
+                      ? 'bg-green-50 border-green-200' 
+                      : 'bg-yellow-50 border-yellow-200'
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium text-gray-900">
+                          Verification Status: {(selectedProperty as any).isVerified ? 'Verified' : 'Not Verified'}
+                        </p>
+                      </div>
+                      {(selectedProperty as any).isVerified && (
+                        <CheckCircle className="w-6 h-6 text-green-600" />
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Documents */}
+                {selectedProperty && (selectedProperty as any).propertyProofDocuments && Array.isArray((selectedProperty as any).propertyProofDocuments) && (selectedProperty as any).propertyProofDocuments.length > 0 ? (
+                  <div className="space-y-4">
+                    {(selectedProperty as any).propertyProofDocuments.map((docUrl: string, index: number) => (
+                      <div key={index} className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3 flex-1">
+                            <FileText className="w-5 h-5 text-gray-500" />
+                            <div className="flex-1">
+                              <p className="font-medium text-gray-900">Document {index + 1}</p>
+                              <p className="text-xs text-gray-500 mt-1">
+                                {docUrl.split('/').pop()?.split('?')[0] || 'Property proof document'}
+                              </p>
+                            </div>
+                          </div>
+                          <a
+                            href={docUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 px-3 py-2 bg-blue-100 text-blue-700 text-sm font-medium rounded-lg hover:bg-blue-200 transition-colors"
+                          >
+                            <Download className="w-4 h-4" />
+                            View
+                          </a>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <FileText className="w-8 h-8 text-gray-400" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">No Documents Available</h3>
+                    <p className="text-gray-500">This property doesn't have any property proof documents uploaded yet.</p>
+                  </div>
+                )}
+
+                {/* Verify Button */}
+                {selectedProperty && !(selectedProperty as any).isVerified && (selectedProperty as any).propertyProofDocuments && Array.isArray((selectedProperty as any).propertyProofDocuments) && (selectedProperty as any).propertyProofDocuments.length > 0 && (
+                  <div className="pt-4 border-t border-gray-200">
+                    <button
+                      onClick={handleVerifyProperty}
+                      disabled={actionLoading}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-green-500 text-white font-medium rounded-xl hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <CheckCircle className="w-5 h-5" />
+                      {actionLoading ? 'Verifying...' : 'Verify Property'}
+                    </button>
+                  </div>
+                )}
+
+                {error && (
+                  <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+                    <p className="text-red-800 text-sm">{error}</p>
+                  </div>
+                )}
+              </div>
+              )}
             </div>
           </div>
         </div>
