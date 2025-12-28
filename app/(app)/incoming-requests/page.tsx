@@ -85,7 +85,7 @@ export default function IncomingRequestsPage() {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [roleFilter, setRoleFilter] = useState<string>('all');
+  const [activeTab, setActiveTab] = useState<'tenant' | 'landlord'>('tenant');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
   const [selectedRequest, setSelectedRequest] = useState<VerificationRequest | null>(null);
@@ -130,6 +130,9 @@ export default function IncomingRequestsPage() {
   useEffect(() => {
     let filtered = allRequests;
 
+    // Role filter based on active tab
+    filtered = filtered.filter(request => request.role === activeTab);
+
     // Search filter
     if (searchTerm.trim()) {
       filtered = filtered.filter(request =>
@@ -143,14 +146,9 @@ export default function IncomingRequestsPage() {
       filtered = filtered.filter(request => request.status === statusFilter);
     }
 
-    // Role filter
-    if (roleFilter !== 'all') {
-      filtered = filtered.filter(request => request.role === roleFilter);
-    }
-
     setFilteredRequests(filtered);
     setCurrentPage(1); // Reset to first page when filtering
-  }, [searchTerm, statusFilter, roleFilter, allRequests]);
+  }, [searchTerm, statusFilter, activeTab, allRequests]);
 
   // Calculate pagination
   const totalPages = Math.ceil(filteredRequests.length / itemsPerPage);
@@ -370,13 +368,39 @@ export default function IncomingRequestsPage() {
       <div className="bg-white/80 backdrop-blur-xl border-b border-gray-200/50 px-4 sm:px-6 py-4 sm:py-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">Incoming Requests</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">Document Verifications</h1>
             <p className="text-gray-500 text-sm sm:text-base mt-1">Review and manage verification requests from landlords and tenants</p>
           </div>
           <div className="flex items-center gap-3">
             <div className="text-sm text-gray-500">
               {filteredRequests.length} of {allRequests.length} requests
             </div>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="mt-4 sm:mt-6">
+          <div className="flex border-b border-gray-200">
+            <button
+              onClick={() => setActiveTab('tenant')}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'tenant'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Tenants ({allRequests.filter(r => r.role === 'tenant').length})
+            </button>
+            <button
+              onClick={() => setActiveTab('landlord')}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'landlord'
+                  ? 'border-green-500 text-green-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Landlords ({allRequests.filter(r => r.role === 'landlord').length})
+            </button>
           </div>
         </div>
 
@@ -392,31 +416,22 @@ export default function IncomingRequestsPage() {
                   placeholder="Search by name or email..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
                 />
               </div>
             </div>
 
-            {/* Filters */}
+            {/* Status Filter */}
             <div className="flex gap-2">
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
               >
                 <option value="all">All Status</option>
                 <option value="pending">Pending</option>
                 <option value="verified">Verified</option>
                 <option value="rejected">Rejected</option>
-              </select>
-              <select
-                value={roleFilter}
-                onChange={(e) => setRoleFilter(e.target.value)}
-                className="px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="all">All Roles</option>
-                <option value="tenant">Tenants</option>
-                <option value="landlord">Landlords</option>
               </select>
             </div>
           </div>
@@ -438,10 +453,10 @@ export default function IncomingRequestsPage() {
                 <FileText className="w-8 h-8 sm:w-10 sm:h-10 text-gray-400" />
               </div>
               <h3 className="text-lg sm:text-xl font-semibold text-gray-900 mb-2">
-                {searchTerm || statusFilter !== 'all' || roleFilter !== 'all' ? 'No requests found' : 'No requests yet'}
+                {searchTerm || statusFilter !== 'all' ? 'No requests found' : `No ${activeTab === 'tenant' ? 'tenant' : 'landlord'} requests yet`}
               </h3>
               <p className="text-gray-500 text-base sm:text-lg">
-                {searchTerm || statusFilter !== 'all' || roleFilter !== 'all' ? 'Try adjusting your filters' : 'Verification requests will appear here once submitted'}
+                {searchTerm || statusFilter !== 'all' ? 'Try adjusting your filters' : `${activeTab === 'tenant' ? 'Tenant' : 'Landlord'} verification requests will appear here once submitted`}
               </p>
             </div>
           </div>
@@ -861,7 +876,7 @@ export default function IncomingRequestsPage() {
                       value={rejectionReason}
                       onChange={(e) => setRejectionReason(e.target.value)}
                       placeholder="Enter reason for rejection..."
-                      className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
+                      className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none text-black"
                       rows={3}
                     />
                   </div>

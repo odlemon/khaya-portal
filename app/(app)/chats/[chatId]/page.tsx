@@ -346,7 +346,7 @@ export default function ChatPage() {
                   onChange={handleInputChange}
                   onKeyDown={handleKeyPress}
                   placeholder="Message"
-                  className="w-full bg-transparent border-none outline-none resize-none text-sm placeholder-gray-500"
+                  className="w-full bg-transparent border-none outline-none resize-none text-sm text-black placeholder-gray-500"
                   style={{
                     caretColor: '#007AFF',
                   }}

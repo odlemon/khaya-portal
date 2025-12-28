@@ -406,7 +406,7 @@ export default function AgreementsPage() {
                     placeholder="Search agreements..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 bg-gray-100/50 border-0 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all duration-200 text-sm sm:text-base"
+                    className="w-full pl-10 pr-4 py-2.5 bg-gray-100/50 border-0 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all duration-200 text-sm sm:text-base text-black"
                   />
                 </div>
               </div>
@@ -913,7 +913,7 @@ export default function AgreementsPage() {
                         value={formData.title}
                         onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
                         placeholder="e.g., Rental Agreement for 2BR Apartment"
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
                         required
                       />
                     </div>
@@ -924,7 +924,7 @@ export default function AgreementsPage() {
                         onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
                         placeholder="Agreement description..."
                         rows={3}
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-black"
                       />
                     </div>
                   </div>
@@ -954,7 +954,7 @@ export default function AgreementsPage() {
                           setSelectedProperty(null);
                           setAvailableTenants([]);
                         }}
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
                         required
                       >
                         <option value="">Select Landlord</option>
@@ -1006,7 +1006,7 @@ export default function AgreementsPage() {
                           setSelectedProperty(null);
                           setAvailableTenants([]);
                         }}
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
                         required
                       >
                         <option value="">Select Property</option>
@@ -1043,7 +1043,7 @@ export default function AgreementsPage() {
                         placeholder="0.00"
                         min="0"
                         step="0.01"
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
                         required
                       />
                     </div>
@@ -1059,7 +1059,7 @@ export default function AgreementsPage() {
                         min="0"
                         step="0.01"
                         disabled={formData.zeroDeposit}
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed text-black"
                       />
                     </div>
                   </div>
@@ -1097,7 +1097,7 @@ export default function AgreementsPage() {
                         type="date"
                         value={formData.startDate}
                         onChange={(e) => setFormData(prev => ({ ...prev, startDate: e.target.value }))}
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
                         required
                       />
                     </div>
@@ -1110,7 +1110,7 @@ export default function AgreementsPage() {
                         value={formData.endDate}
                         onChange={(e) => setFormData(prev => ({ ...prev, endDate: e.target.value }))}
                         min={formData.startDate}
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
                         required
                       />
                     </div>
@@ -1128,7 +1128,7 @@ export default function AgreementsPage() {
                       <select
                         value={formData.paymentFrequency}
                         onChange={(e) => setFormData(prev => ({ ...prev, paymentFrequency: e.target.value }))}
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
                       >
                         <option value="monthly">Monthly</option>
                         <option value="weekly">Weekly</option>
@@ -1145,7 +1145,7 @@ export default function AgreementsPage() {
                         onChange={(e) => setFormData(prev => ({ ...prev, paymentDueDay: e.target.value }))}
                         min="1"
                         max="31"
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
                       />
                     </div>
                     <div>
@@ -1159,7 +1159,7 @@ export default function AgreementsPage() {
                         placeholder="0.00"
                         min="0"
                         step="0.01"
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
                       />
                     </div>
                     <div>
@@ -1172,7 +1172,7 @@ export default function AgreementsPage() {
                         onChange={(e) => setFormData(prev => ({ ...prev, gracePeriod: e.target.value }))}
                         placeholder="0"
                         min="0"
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
                       />
                     </div>
                   </div>
@@ -1204,7 +1204,7 @@ export default function AgreementsPage() {
                             setFormData(prev => ({ ...prev, utilitiesList: list }));
                           }}
                           placeholder="Water, Electricity, Internet"
-                          className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
                         />
                       </div>
                     )}
@@ -1236,7 +1236,7 @@ export default function AgreementsPage() {
                         }}
                         placeholder="Enter terms, one per line..."
                         rows={4}
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-black"
                       />
                     </div>
                     <div>
@@ -1251,7 +1251,7 @@ export default function AgreementsPage() {
                         }}
                         placeholder="Enter special conditions, one per line..."
                         rows={4}
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-black"
                       />
                     </div>
                   </div>
