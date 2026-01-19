@@ -6,7 +6,7 @@ import { usePropertiesService, type Property } from '../../services/properties/p
 import { useAuth } from '../../context/AuthContext';
 import { useFetchWithAuth } from '../../context/fetchWithAuth';
 import { API_CONFIG } from '../../config/api.config';
-import { FileText, Download, CheckCircle } from 'lucide-react';
+import { FileText, Download, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,6 +23,8 @@ export default function PropertiesPage() {
   const [showImageDialog, setShowImageDialog] = useState(false);
   const [activeTab, setActiveTab] = useState<'images' | 'documents'>('images');
   const [actionLoading, setActionLoading] = useState(false);
+  const [showRejectionModal, setShowRejectionModal] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState('');
   
   const { getProperties } = usePropertiesService();
   const { loading: authLoading } = useAuth();
@@ -108,20 +110,62 @@ export default function PropertiesPage() {
       
       const data = await response.json();
       if (response.ok && data.success) {
+        // Use full response data if available, otherwise update with verification status
+        const updatedProperty = data.data || { isVerified: true, verificationStatus: 'verified' };
         // Update the property in the list
         setAllProperties(prev => prev.map(p => 
           p._id === selectedProperty._id 
-            ? { ...p, isVerified: true, verificationStatus: 'verified' }
+            ? { ...p, ...updatedProperty }
             : p
         ));
         // Update selected property
-        setSelectedProperty(prev => prev ? { ...prev, isVerified: true, verificationStatus: 'verified' } : null);
+        setSelectedProperty(prev => prev ? { ...prev, ...updatedProperty } : null);
       } else {
         setError(data.message || 'Failed to verify property');
       }
     } catch (err) {
       console.error('Error verifying property:', err);
       setError(err instanceof Error ? err.message : 'Failed to verify property');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRejectProperty = async () => {
+    if (!selectedProperty || !rejectionReason.trim()) return;
+    try {
+      setActionLoading(true);
+      setError(null);
+      const response = await fetchWithAuth(`${API_CONFIG.baseUrl}/properties/admin/${selectedProperty._id}/reject`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          rejectionReason: rejectionReason.trim(),
+        }),
+      });
+      
+      const data = await response.json();
+      if (response.ok && data.success && data.data) {
+        const updatedProperty = data.data;
+        // Update the property in the list with full response data
+        setAllProperties(prev => prev.map(p => 
+          p._id === selectedProperty._id 
+            ? { ...p, ...updatedProperty }
+            : p
+        ));
+        // Update selected property with full response data
+        setSelectedProperty(prev => prev ? { ...prev, ...updatedProperty } : null);
+        // Close rejection modal and reset
+        setShowRejectionModal(false);
+        setRejectionReason('');
+      } else {
+        setError(data.message || 'Failed to reject property');
+      }
+    } catch (err) {
+      console.error('Error rejecting property:', err);
+      setError(err instanceof Error ? err.message : 'Failed to reject property');
     } finally {
       setActionLoading(false);
     }
@@ -138,6 +182,8 @@ export default function PropertiesPage() {
     setSelectedProperty(null);
     setActiveTab('images');
     setError(null);
+    setShowRejectionModal(false);
+    setRejectionReason('');
   };
 
   if (loading) {
@@ -515,17 +561,35 @@ export default function PropertiesPage() {
                   </div>
                 )}
 
-                {/* Verify Button */}
+                {/* Approve and Reject Buttons */}
                 {selectedProperty && !(selectedProperty as any).isVerified && (selectedProperty as any).propertyProofDocuments && Array.isArray((selectedProperty as any).propertyProofDocuments) && (selectedProperty as any).propertyProofDocuments.length > 0 && (
                   <div className="pt-4 border-t border-gray-200">
-                    <button
-                      onClick={handleVerifyProperty}
-                      disabled={actionLoading}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-green-500 text-white font-medium rounded-xl hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <CheckCircle className="w-5 h-5" />
-                      {actionLoading ? 'Verifying...' : 'Verify Property'}
-                    </button>
+                    <div className="flex items-center justify-end gap-4">
+                      <button
+                        onClick={() => {
+                          setShowRejectionModal(true);
+                        }}
+                        disabled={actionLoading}
+                        className="px-6 py-2 bg-red-500 text-white hover:bg-red-600 rounded-xl transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                      >
+                        {actionLoading && (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        )}
+                        Reject
+                      </button>
+                      <button
+                        onClick={handleVerifyProperty}
+                        disabled={actionLoading}
+                        className="px-6 py-2 bg-green-500 text-white hover:bg-green-600 rounded-xl transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                      >
+                        {actionLoading ? (
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                        ) : (
+                          <CheckCircle className="w-5 h-5" />
+                        )}
+                        {actionLoading ? 'Approving...' : 'Approve'}
+                      </button>
+                    </div>
                   </div>
                 )}
 
@@ -536,6 +600,73 @@ export default function PropertiesPage() {
                 )}
               </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Rejection Modal */}
+      {showRejectionModal && selectedProperty && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Reject Property</h3>
+                <button
+                  onClick={() => {
+                    setShowRejectionModal(false);
+                    setRejectionReason('');
+                  }}
+                  className="p-2 hover:bg-gray-100 rounded-full transition-colors duration-200"
+                >
+                  <XCircle className="w-5 h-5 text-gray-500" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Rejection Reason <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    value={rejectionReason}
+                    onChange={(e) => setRejectionReason(e.target.value)}
+                    placeholder="Enter reason for rejection..."
+                    className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
+                    rows={4}
+                    required
+                  />
+                  <p className="text-xs text-gray-500 mt-1">This reason will be sent to the landlord.</p>
+                </div>
+
+                <div className="flex items-center justify-end gap-3">
+                  <button
+                    onClick={() => {
+                      setShowRejectionModal(false);
+                      setRejectionReason('');
+                    }}
+                    className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors duration-200"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (rejectionReason.trim()) {
+                        handleRejectProperty();
+                      } else {
+                        setError('Please provide a reason for rejection');
+                      }
+                    }}
+                    disabled={actionLoading || !rejectionReason.trim()}
+                    className="px-4 py-2 bg-red-500 text-white hover:bg-red-600 rounded-xl transition-colors duration-200 disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {actionLoading && (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    )}
+                    {actionLoading ? 'Rejecting...' : 'Reject Property'}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

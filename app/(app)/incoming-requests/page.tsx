@@ -16,7 +16,8 @@ import {
   Eye,
   Download,
   Search,
-  Filter
+  Filter,
+  Loader2
 } from 'lucide-react';
 
 interface DocumentInfo {
@@ -92,6 +93,7 @@ export default function IncomingRequestsPage() {
   const [showModal, setShowModal] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
+  const [showRejectionModal, setShowRejectionModal] = useState(false);
 
   const fetchWithAuth = useFetchWithAuth();
   const { loading: authLoading } = useAuth();
@@ -242,6 +244,7 @@ export default function IncomingRequestsPage() {
   const handleApprove = async (userId: string) => {
     try {
       setActionLoading(true);
+      setError(null);
       
       const response = await fetchWithAuth(`${API_CONFIG.baseUrl}/documents/admin/verify`, {
         method: 'POST',
@@ -261,18 +264,30 @@ export default function IncomingRequestsPage() {
       
       const result = await response.json();
       if (!result.success) {
-        throw new Error(result.message);
+        throw new Error(result.message || 'Failed to approve request');
       }
       
-      // Update the request status locally
+      // Update the request immediately
+      const updatedRequest = {
+        ...selectedRequest,
+        status: 'verified' as const,
+        verifiedAt: new Date().toISOString(),
+      };
+      setSelectedRequest(updatedRequest);
+      
+      // Update the request in the list
       setAllRequests(prev => prev.map(req => 
         req.userId === userId 
           ? { ...req, status: 'verified' as const, verifiedAt: new Date().toISOString() }
           : req
       ));
       
+      // Close modal to show updated list
       setShowModal(false);
       setSelectedRequest(null);
+      
+      // Refresh the requests list to get any additional updated data from server
+      fetchRequests().catch(console.error);
     } catch (err) {
       console.error('Error approving request:', err);
       setError(err instanceof Error ? err.message : 'Failed to approve request');
@@ -289,17 +304,16 @@ export default function IncomingRequestsPage() {
 
     try {
       setActionLoading(true);
+      setError(null);
       
-      const response = await fetchWithAuth(`${API_CONFIG.baseUrl}/documents/admin/verify`, {
+      const response = await fetchWithAuth(`${API_CONFIG.baseUrl}/documents/admin/reject`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           userId,
-          status: 'rejected',
-          adminFeedback: rejectionReason,
-          rejectionReason: rejectionReason
+          rejectionReason: rejectionReason.trim(),
         }),
       });
       
@@ -309,19 +323,33 @@ export default function IncomingRequestsPage() {
       
       const result = await response.json();
       if (!result.success) {
-        throw new Error(result.message);
+        throw new Error(result.message || 'Failed to reject request');
       }
       
-      // Update the request status locally
+      // Update the request immediately to show rejection reason in modal
+      if (selectedRequest?.userId === userId) {
+        const updatedRequest = {
+          ...selectedRequest,
+          status: 'rejected' as const,
+          rejectionReason: rejectionReason.trim(),
+          rejectedAt: new Date().toISOString(),
+        };
+        setSelectedRequest(updatedRequest);
+      }
+      
+      // Update the request in the list
       setAllRequests(prev => prev.map(req => 
         req.userId === userId 
-          ? { ...req, status: 'rejected' as const, rejectedAt: new Date().toISOString(), rejectionReason }
+          ? { ...req, status: 'rejected' as const, rejectionReason: rejectionReason.trim(), rejectedAt: new Date().toISOString() }
           : req
       ));
       
-      setShowModal(false);
-      setSelectedRequest(null);
+      // Close rejection modal and reset reason
+      setShowRejectionModal(false);
       setRejectionReason('');
+      
+      // Refresh the requests list to get any additional updated data from server
+      fetchRequests().catch(console.error);
     } catch (err) {
       console.error('Error rejecting request:', err);
       setError(err instanceof Error ? err.message : 'Failed to reject request');
@@ -603,6 +631,7 @@ export default function IncomingRequestsPage() {
                     setShowModal(false);
                     setSelectedRequest(null);
                     setRejectionReason('');
+                    setShowRejectionModal(false);
                   }}
                   className="p-2 hover:bg-gray-100 rounded-full transition-colors duration-200"
                 >
@@ -868,17 +897,19 @@ export default function IncomingRequestsPage() {
                   </div>
                 </div>
 
-                {/* Rejection Reason Input */}
-                {selectedRequest.status === 'pending' && (
-                  <div className="bg-yellow-50 rounded-2xl p-4">
-                    <h4 className="text-lg font-semibold text-gray-900 mb-4">Rejection Reason (if rejecting)</h4>
-                    <textarea
-                      value={rejectionReason}
-                      onChange={(e) => setRejectionReason(e.target.value)}
-                      placeholder="Enter reason for rejection..."
-                      className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none text-black"
-                      rows={3}
-                    />
+                {/* Rejection Reason Display */}
+                {selectedRequest.status === 'rejected' && selectedRequest.rejectionReason && (
+                  <div className="bg-red-50 rounded-2xl p-4 border border-red-200">
+                    <h4 className="text-lg font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                      <AlertTriangle className="w-5 h-5 text-red-600" />
+                      Rejection Reason
+                    </h4>
+                    <p className="text-gray-700 whitespace-pre-wrap">{selectedRequest.rejectionReason}</p>
+                    {selectedRequest.rejectedAt && (
+                      <p className="text-sm text-gray-500 mt-2">
+                        Rejected on: {formatDate(selectedRequest.rejectedAt)}
+                      </p>
+                    )}
                   </div>
                 )}
 
@@ -889,6 +920,7 @@ export default function IncomingRequestsPage() {
                       setShowModal(false);
                       setSelectedRequest(null);
                       setRejectionReason('');
+                      setShowRejectionModal(false);
                     }}
                     className="px-6 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors duration-200"
                     disabled={actionLoading}
@@ -899,21 +931,102 @@ export default function IncomingRequestsPage() {
                   {selectedRequest.status === 'pending' && (
                     <>
                       <button
-                        onClick={() => handleReject(selectedRequest.userId)}
+                        onClick={() => {
+                          setShowRejectionModal(true);
+                        }}
                         disabled={actionLoading}
-                        className="px-6 py-2 bg-red-500 text-white hover:bg-red-600 rounded-xl transition-colors duration-200 disabled:opacity-50"
+                        className="px-6 py-2 bg-red-500 text-white hover:bg-red-600 rounded-xl transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                       >
-                        {actionLoading ? 'Rejecting...' : 'Reject'}
+                        Reject
                       </button>
                       <button
                         onClick={() => handleApprove(selectedRequest.userId)}
                         disabled={actionLoading}
-                        className="px-6 py-2 bg-green-500 text-white hover:bg-green-600 rounded-xl transition-colors duration-200 disabled:opacity-50"
+                        className="px-6 py-2 bg-green-500 text-white hover:bg-green-600 rounded-xl transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                       >
-                        {actionLoading ? 'Approving...' : 'Approve'}
+                        {actionLoading ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Approving...
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle className="w-4 h-4" />
+                            Approve
+                          </>
+                        )}
                       </button>
                     </>
                   )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Rejection Modal */}
+      {showRejectionModal && selectedRequest && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Reject Verification Request</h3>
+                <button
+                  onClick={() => {
+                    setShowRejectionModal(false);
+                    setRejectionReason('');
+                  }}
+                  disabled={actionLoading}
+                  className="p-2 hover:bg-gray-100 rounded-full transition-colors duration-200"
+                >
+                  <XCircle className="w-5 h-5 text-gray-500" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Rejection Reason <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    value={rejectionReason}
+                    onChange={(e) => setRejectionReason(e.target.value)}
+                    placeholder="Enter reason for rejection..."
+                    className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
+                    rows={4}
+                    required
+                  />
+                  <p className="text-xs text-gray-500 mt-1">This reason will be sent to the user.</p>
+                </div>
+
+                <div className="flex items-center justify-end gap-3">
+                  <button
+                    onClick={() => {
+                      setShowRejectionModal(false);
+                      setRejectionReason('');
+                    }}
+                    disabled={actionLoading}
+                    className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors duration-200 disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (rejectionReason.trim()) {
+                        handleReject(selectedRequest.userId);
+                      } else {
+                        setError('Please provide a reason for rejection');
+                      }
+                    }}
+                    disabled={actionLoading || !rejectionReason.trim()}
+                    className="px-4 py-2 bg-red-500 text-white hover:bg-red-600 rounded-xl transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    {actionLoading && (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    )}
+                    {actionLoading ? 'Rejecting...' : 'Reject Request'}
+                  </button>
                 </div>
               </div>
             </div>
