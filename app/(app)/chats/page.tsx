@@ -5,14 +5,19 @@ import { useEffect } from 'react';
 import { useChatStore } from '@/app/store/chatStore';
 import { useRouter } from 'next/navigation';
 import { formatDistanceToNow } from 'date-fns';
+import { useAuth } from '@/app/context/AuthContext';
+import { socketService } from '@/app/lib/socket';
 
 export default function ChatsPage() {
+  const { token } = useAuth();
   const { chats, isLoading, error, loadAllChats } = useChatStore();
   const router = useRouter();
 
   useEffect(() => {
+    if (!token) return;
+    socketService.connect(token);
     loadAllChats();
-  }, []);
+  }, [token, loadAllChats]);
 
   if (isLoading) {
     return (

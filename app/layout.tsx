@@ -10,6 +10,10 @@ const inter = Inter({ subsets: ['latin'] })
 export const metadata: Metadata = {
   title: 'Khaya Portal',
   description: 'Property management portal for tenants, landlords, and rental properties',
+  icons: {
+    icon: '/images/khaya.png',
+    apple: '/images/khaya.png',
+  },
   openGraph: {
     title: 'Khaya Portal - Property Management',
     description: 'Property management portal for tenants, landlords, and rental properties',
@@ -42,9 +46,6 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <head>
-        <link rel="icon" href="/favicon.ico" sizes="any" />
-      </head>
       <body className={inter.className + ' bg-gray-100'}>
         <AuthProvider>
           <Toaster position="top-center" toastOptions={{

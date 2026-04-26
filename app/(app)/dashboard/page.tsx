@@ -1,7 +1,7 @@
 // @ts-nocheck
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useDashboardService, type DashboardMetrics, type ReportResponse } from '../../services/dashboard/dashboard.service';
 import { useAuth } from '../../context/AuthContext';
 import { 
@@ -45,34 +45,46 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [exportLoading, setExportLoading] = useState(false);
   
-  const { getDashboardMetrics } = useDashboardService();
-  const { getAdminReport } = useDashboardService();
-  const { loading: authLoading } = useAuth();
+  const { getDashboardMetrics, getAdminReport } = useDashboardService();
+  const { loading: authLoading, token: authToken } = useAuth();
+  const getMetricsRef = useRef(getDashboardMetrics);
+  getMetricsRef.current = getDashboardMetrics;
 
   useEffect(() => {
-    if (authLoading) {
+    if (authLoading || !authToken) {
       return;
     }
+
+    let cancelled = false;
 
     const fetchDashboardData = async () => {
       try {
         setLoading(true);
-        const response = await getDashboardMetrics();
+        setError(null);
+        const response = await getMetricsRef.current();
+        if (cancelled) return;
         if (response?.success) {
           setDashboardData(response.data);
         } else {
           setError('Failed to fetch dashboard data');
         }
       } catch (err) {
-        setError('Error loading dashboard data');
-        console.error('Error fetching dashboard data:', err);
+        if (!cancelled) {
+          setError('Error loading dashboard data');
+          console.error('Error fetching dashboard data:', err);
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
     fetchDashboardData();
-  }, [getDashboardMetrics, authLoading]);
+    return () => {
+      cancelled = true;
+    };
+  }, [authLoading, authToken]);
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-US', {

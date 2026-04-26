@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { API_CONFIG } from '../../config/api.config';
+import { isKhayalamiAdminRole } from '../../lib/portals';
 
 export interface Permission {
   name: string;
@@ -53,9 +54,9 @@ class PermissionService {
         return role.permissions;
       }
       
-      // Fallback: return default permissions for admin users
+      // Fallback: return default permissions for admin users (JWT role string variants)
       const decoded = this.decodeToken(token);
-      if (decoded?.role === 'admin') {
+      if (isKhayalamiAdminRole(decoded?.role)) {
         return [
           { name: 'manage_users', value: true },
           { name: 'manage_roles', value: true },

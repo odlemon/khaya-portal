@@ -5,8 +5,11 @@ import { useEffect, useState, useRef } from 'react';
 import { useChatStore } from '@/app/store/chatStore';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { formatDistanceToNow } from 'date-fns';
+import { useAuth } from '@/app/context/AuthContext';
+import { socketService } from '@/app/lib/socket';
 
 export default function MessagesPage() {
+  const { token } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [selectedChatId, setSelectedChatId] = useState(searchParams.get('chat'));
@@ -36,9 +39,11 @@ export default function MessagesPage() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
+    if (!token) return;
+    socketService.connect(token);
     loadAllChats();
     initSocketListeners();
-  }, []);
+  }, [token, loadAllChats, initSocketListeners]);
 
   // Sync selectedChatId with URL changes
   useEffect(() => {

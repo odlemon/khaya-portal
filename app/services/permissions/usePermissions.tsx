@@ -3,15 +3,54 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import permissionService, { Permission } from './permission.service';
 import SkeletonLoader from '../../components/SkeletonLoader';
+import {
+  isBankAdminRole,
+  isInsuranceAdminRole,
+  getRoleFromJwtToken,
+} from '../../lib/portals';
 
 export function usePermissions() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [permissions, setPermissions] = useState<Permission[]>([]);
   const [loading, setLoading] = useState(true);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
     if (!token) {
+      setPermissions([]);
+      setLoading(false);
+      setReady(true);
+      return;
+    }
+
+    // Token present but user profile not in context yet — avoid wrong Khayalami permission set for partner JWTs.
+    if (!user) {
+      const jwtRole = getRoleFromJwtToken(token);
+      if (isInsuranceAdminRole(jwtRole) || isBankAdminRole(jwtRole)) {
+        setPermissions([]);
+        setLoading(false);
+        setReady(true);
+        return;
+      }
+      const loadFromTokenOnly = async () => {
+        try {
+          setLoading(true);
+          setReady(false);
+          const userPermissions = await permissionService.getUserPermissions(token);
+          setPermissions(userPermissions);
+        } catch (error) {
+          console.error('Failed to load permissions:', error);
+          setPermissions([]);
+        } finally {
+          setLoading(false);
+          setReady(true);
+        }
+      };
+      loadFromTokenOnly();
+      return;
+    }
+
+    if (isInsuranceAdminRole(user?.role) || isBankAdminRole(user?.role)) {
       setPermissions([]);
       setLoading(false);
       setReady(true);
@@ -34,7 +73,7 @@ export function usePermissions() {
     };
 
     loadPermissions();
-  }, [token]);
+  }, [token, user?.id, user?.role]);
 
   const hasPermission = (permissionName: string): boolean => {
     const permission = permissions.find(p => p.name === permissionName);

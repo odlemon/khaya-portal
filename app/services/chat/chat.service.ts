@@ -1,17 +1,10 @@
 // @ts-nocheck
 import { API_CONFIG } from '@/app/config/api.config';
-
-// Helper to get auth token
-const getAuthToken = () => {
-  if (typeof window !== 'undefined') {
-    return localStorage.getItem('authToken');
-  }
-  return null;
-};
+import { getToken } from '@/app/lib/authSession';
 
 // Helper to make authenticated fetch requests
 const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
-  const token = getAuthToken();
+  const token = getToken();
   const headers = new Headers(options.headers || {});
   
   if (token) {

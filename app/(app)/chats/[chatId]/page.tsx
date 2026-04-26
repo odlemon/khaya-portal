@@ -5,8 +5,11 @@ import { useEffect, useState, useRef } from 'react';
 import { useChatStore } from '@/app/store/chatStore';
 import { useParams, useRouter } from 'next/navigation';
 import { formatDistanceToNow } from 'date-fns';
+import { useAuth } from '@/app/context/AuthContext';
+import { socketService } from '@/app/lib/socket';
 
 export default function ChatPage() {
+  const { token } = useAuth();
   const params = useParams();
   const router = useRouter();
   const chatId = params.chatId as string;
@@ -21,13 +24,15 @@ export default function ChatPage() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
+    if (!token) return;
+    socketService.connect(token);
     initSocketListeners();
     loadChatById(chatId);
 
     return () => {
       clearCurrentChat();
     };
-  }, [chatId]);
+  }, [chatId, token, initSocketListeners, loadChatById, clearCurrentChat]);
 
   useEffect(() => {
     // Scroll to bottom when messages change

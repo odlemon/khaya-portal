@@ -5,21 +5,22 @@ import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 
 export default function PaymentLayout({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { token, loading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (!loading && !user) {
+    if (loading) return;
+    if (!token) {
       router.replace('/auth/login');
     }
-  }, [user, loading, router]);
+  }, [token, loading, router]);
 
-  if (loading) return null;
-  if (!user) return null;
+  if (loading) {
+    return null;
+  }
+  if (!token) {
+    return null;
+  }
 
-  return (
-    <>
-      {children}
-    </>
-  );
-} 
+  return <>{children}</>;
+}

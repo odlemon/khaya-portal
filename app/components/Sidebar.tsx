@@ -8,6 +8,8 @@ import { usePermissions } from "../services/permissions/usePermissions";
 import authService from "../services/auth/auth.service";
 import type { UserDetailsData } from "../services/auth/types";
 import { useAuth } from '../context/AuthContext';
+import PartnerSidebar from './PartnerSidebar';
+import { isBankAdminRole, isInsuranceAdminRole, isPartnerPortalPath } from '../lib/portals';
 
 const menuItems = [
   {
@@ -165,6 +167,26 @@ const sidebarIcons = {
 };
 
 // Helper to map menu item name to sidebarIcons key
+function SidebarLoadingShell() {
+  return (
+    <aside className="w-64 bg-white border-r border-gray-200 h-full flex flex-col relative">
+      <div className="px-6 py-4">
+        <div className="h-8 bg-gray-200 rounded-lg w-32 animate-pulse"></div>
+      </div>
+      <nav className="flex-1 px-4 py-4">
+        <div className="space-y-1">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="h-9 bg-gray-200 rounded-lg animate-pulse"></div>
+          ))}
+        </div>
+      </nav>
+      <div className="px-4 pb-4">
+        <div className="h-12 bg-gray-200 rounded-xl animate-pulse"></div>
+      </div>
+    </aside>
+  );
+}
+
 const getSidebarIcon = (name: string) => {
   switch (name) {
     case 'Dashboard': return sidebarIcons.dashboard;
@@ -260,24 +282,17 @@ export default function Sidebar() {
     }, 1000);
   }, [router]);
 
+  if (isInsuranceAdminRole(user?.role) || isBankAdminRole(user?.role)) {
+    return <PartnerSidebar />;
+  }
+
+  // On partner URLs, never flash the full Khayalami menu while user/role is still catching up (SPA login race).
+  if (isPartnerPortalPath(pathname)) {
+    return <SidebarLoadingShell />;
+  }
+
   if (permissionsLoading || !permissionsReady) {
-    return (
-      <aside className="w-64 bg-white border-r border-gray-200 h-full flex flex-col relative">
-        <div className="px-6 py-4">
-          <div className="h-8 bg-gray-200 rounded-lg w-32 animate-pulse"></div>
-        </div>
-        <nav className="flex-1 px-4 py-4">
-          <div className="space-y-1">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="h-9 bg-gray-200 rounded-lg animate-pulse"></div>
-            ))}
-          </div>
-        </nav>
-        <div className="px-4 pb-4">
-          <div className="h-12 bg-gray-200 rounded-xl animate-pulse"></div>
-        </div>
-      </aside>
-    );
+    return <SidebarLoadingShell />;
   }
 
   // Responsive sidebar overlay for mobile
@@ -305,7 +320,7 @@ export default function Sidebar() {
         <div className="px-6 py-4 border-b border-gray-100">
           <div className="flex items-center space-x-3">
             <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
-              <img src="/images/logo/logo.png" alt="Logo" className="w-5 h-5" />
+              <img src="/images/khaya.png" alt="Khayalami" className="w-5 h-5 object-contain" />
             </div>
             <div>
               <h1 className="text-lg font-semibold text-gray-900">Khaya Portal</h1>

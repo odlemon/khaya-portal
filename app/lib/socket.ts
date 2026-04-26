@@ -6,34 +6,45 @@ const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'https://khaya-server.v
 class SocketService {
   private socket: Socket | null = null;
   private connected: boolean = false;
+  private lastToken: string | null = null;
 
   connect(token: string) {
-    if (this.socket?.connected) return;
+    if (!token) return;
+    if (this.socket?.connected && this.lastToken === token) return;
+
+    this.disconnect();
+    this.lastToken = token;
 
     this.socket = io(SOCKET_URL, {
       auth: { token },
       transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 2000,
+      reconnectionDelayMax: 10000,
+      timeout: 20000,
     });
 
     this.socket.on('connect', () => {
-      console.log('✅ Socket connected');
       this.connected = true;
     });
 
     this.socket.on('disconnect', () => {
-      console.log('🔌 Socket disconnected');
       this.connected = false;
     });
 
-    this.socket.on('connect_error', (error) => {
-      console.error('❌ Socket connection error:', error);
+    this.socket.on('connect_error', () => {
       this.connected = false;
     });
   }
 
   disconnect() {
-    this.socket?.disconnect();
-    this.socket = null;
+    if (this.socket) {
+      this.socket.removeAllListeners();
+      this.socket.disconnect();
+      this.socket = null;
+    }
+    this.lastToken = null;
     this.connected = false;
   }
 
@@ -46,10 +57,12 @@ class SocketService {
   }
 
   onNewMessage(callback: (data: any) => void) {
+    this.socket?.off('new_message');
     this.socket?.on('new_message', callback);
   }
 
   onUserTyping(callback: (data: any) => void) {
+    this.socket?.off('user_typing');
     this.socket?.on('user_typing', callback);
   }
 

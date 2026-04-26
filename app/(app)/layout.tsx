@@ -2,21 +2,17 @@
 'use client';
 import Sidebar from '../components/Sidebar';
 import Navbar from '../components/Navbar';
-import { Toaster } from 'react-hot-toast';
-import { AuthProvider } from '../context/AuthContext';
-import '../globals.css';
+import RolePortalGuard from '../components/RolePortalGuard';
 import { Suspense } from 'react';
 
+/** Auth + Toaster live in app/layout.tsx only — avoid duplicate providers / toast portals. */
 export default function AppLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   return (
-    <AuthProvider>
-      <Toaster position="top-center" toastOptions={{
-        style: { fontFamily: 'inherit' },
-      }} />
+    <RolePortalGuard>
       <div className="flex h-screen bg-gray-100">
         <Sidebar />
         <div className="flex-1 flex flex-col overflow-hidden">
@@ -28,6 +24,6 @@ export default function AppLayout({
           </main>
         </div>
       </div>
-    </AuthProvider>
+    </RolePortalGuard>
   );
 } 
