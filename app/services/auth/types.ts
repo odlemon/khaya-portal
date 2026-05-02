@@ -16,6 +16,8 @@ export interface LoginData {
 export interface AuthResponse {
   success: boolean;
   message: string;
+  /** Backend error code (e.g. ACCOUNT_ADMIN_TERMINATED on 403 login). */
+  code?: string;
   token?: string;
   user?: {
     id?: string;

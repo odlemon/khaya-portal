@@ -8,6 +8,7 @@ import { toast } from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import { getDefaultPathForRole } from '../../lib/portals';
 import { toSessionUser } from '../../lib/authUser';
+import { ACCOUNT_ADMIN_TERMINATED } from '../../lib/authErrors';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -43,8 +44,12 @@ export default function Login() {
         const sessionUser = toSessionUser(u);
         authLogin({ token: t, user: sessionUser });
       } else {
-        setError(res.message || 'Login failed');
-        toast.error(res.message || 'Login failed');
+        const msg =
+          res.code === ACCOUNT_ADMIN_TERMINATED
+            ? 'This account has been disabled. Please contact support.'
+            : res.message || 'Login failed';
+        setError(msg);
+        toast.error(msg);
       }
     } catch (err: any) {
       setError(err.message || 'Login failed');

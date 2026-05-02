@@ -15,7 +15,13 @@ export function isInsuranceAdminRole(role: string | undefined | null): boolean {
 }
 
 export function isBankAdminRole(role: string | undefined | null): boolean {
-  return normalizeRoleKey(role) === 'bank_admin' || normalizeRoleKey(role) === 'bankadmin';
+  const k = normalizeRoleKey(role);
+  return (
+    k === 'bank_admin' ||
+    k === 'bankadmin' ||
+    k === 'bank_administrator' ||
+    k === 'bankadministrator'
+  );
 }
 
 export function isKhayalamiAdminRole(role: string | undefined | null): boolean {

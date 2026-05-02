@@ -2,8 +2,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { toast } from 'react-hot-toast';
 import { useUsersService, type User } from '../../services/users/users.service';
 import { useAuth } from '../../context/AuthContext';
+import { isKhayalamiAdminRole } from '../../lib/portals';
+import AdminTerminateAccountModal from '../../components/AdminTerminateAccountModal';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,8 +20,10 @@ export default function LandlordsPage() {
   const [itemsPerPage] = useState(10);
   const [totalLandlords, setTotalLandlords] = useState(0);
   
-  const { getLandlords } = useUsersService();
-  const { loading: authLoading } = useAuth();
+  const { getLandlords, terminateUser } = useUsersService();
+  const { loading: authLoading, user: authUser, logout } = useAuth();
+  const [terminateTarget, setTerminateTarget] = useState<User | null>(null);
+  const canTerminate = isKhayalamiAdminRole(authUser?.role);
 
   useEffect(() => {
     // Don't make API calls while auth is loading
@@ -77,6 +82,29 @@ export default function LandlordsPage() {
     });
   };
 
+  const handleTerminateConfirm = async (reason: string) => {
+    if (!terminateTarget) return;
+    const r = await terminateUser(terminateTarget._id, reason);
+    if (r.ok) {
+      toast.success('Account terminated.');
+      setAllLandlords((prev) => prev.filter((u) => u._id !== terminateTarget._id));
+      if (String(authUser?.id) === String(terminateTarget._id)) {
+        logout();
+      }
+      return;
+    }
+    if (r.status === 409) {
+      toast.error('Already terminated');
+      setAllLandlords((prev) => prev.filter((u) => u._id !== terminateTarget._id));
+      return;
+    }
+    if (r.status === 403) {
+      toast.error(r.message || 'This account cannot be terminated from here.');
+      throw new Error(r.message || 'Forbidden');
+    }
+    throw new Error(r.message || 'Termination failed');
+  };
+
   if (loading) {
     return (
       <div className="h-screen bg-gray-50 flex flex-col">
@@ -99,6 +127,13 @@ export default function LandlordsPage() {
 
   return (
     <div className="h-screen bg-gray-50 flex flex-col">
+      <AdminTerminateAccountModal
+        open={!!terminateTarget}
+        user={terminateTarget}
+        roleLabel="landlord"
+        onClose={() => setTerminateTarget(null)}
+        onConfirm={handleTerminateConfirm}
+      />
       {/* iOS-style header */}
       <div className="px-6 py-4">
         <div className="flex items-center justify-between">
@@ -169,6 +204,11 @@ export default function LandlordsPage() {
                         <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                           Joined
                         </th>
+                        {canTerminate && (
+                          <th className="px-6 py-4 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                            Actions
+                          </th>
+                        )}
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-100">
@@ -177,7 +217,7 @@ export default function LandlordsPage() {
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center space-x-3">
                               <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center text-white font-semibold text-sm">
-                                {landlord.firstName[0]}{landlord.lastName[0]}
+                                {(landlord.firstName?.[0] || '?')}{(landlord.lastName?.[0] || '')}
                               </div>
                               <div>
                                 <div className="text-sm font-semibold text-gray-900">
@@ -211,6 +251,17 @@ export default function LandlordsPage() {
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="text-sm text-gray-500">{formatDate(landlord.createdAt)}</div>
                           </td>
+                          {canTerminate && (
+                            <td className="px-6 py-4 whitespace-nowrap text-right">
+                              <button
+                                type="button"
+                                onClick={() => setTerminateTarget(landlord)}
+                                className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50"
+                              >
+                                Terminate
+                              </button>
+                            </td>
+                          )}
                         </tr>
                       ))}
                     </tbody>

@@ -1,7 +1,8 @@
 // @ts-nocheck
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useFetchWithAuth } from '@/app/context/fetchWithAuth';
 import { useAuth } from '@/app/context/AuthContext';
 import { API_CONFIG } from '@/app/config/api.config';
@@ -19,6 +20,7 @@ import {
   Filter,
   Loader2
 } from 'lucide-react';
+import PropertyVerificationQueue from '@/app/components/admin/PropertyVerificationQueue';
 
 interface DocumentInfo {
   url: string;
@@ -79,14 +81,16 @@ interface VerificationResponse {
   data: VerificationRequest[];
 }
 
-export default function IncomingRequestsPage() {
+function IncomingRequestsPageInner() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [allRequests, setAllRequests] = useState<VerificationRequest[]>([]);
   const [filteredRequests, setFilteredRequests] = useState<VerificationRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [activeTab, setActiveTab] = useState<'tenant' | 'landlord'>('tenant');
+  const [activeTab, setActiveTab] = useState<'tenant' | 'landlord' | 'properties'>('tenant');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
   const [selectedRequest, setSelectedRequest] = useState<VerificationRequest | null>(null);
@@ -97,6 +101,18 @@ export default function IncomingRequestsPage() {
 
   const fetchWithAuth = useFetchWithAuth();
   const { loading: authLoading } = useAuth();
+
+  useEffect(() => {
+    const t = searchParams.get('tab');
+    if (t === 'properties') setActiveTab('properties');
+    else if (t === 'landlord') setActiveTab('landlord');
+    else if (t === 'tenant') setActiveTab('tenant');
+  }, [searchParams]);
+
+  const navigateTab = (tab: 'tenant' | 'landlord' | 'properties') => {
+    setActiveTab(tab);
+    router.replace(`/incoming-requests?tab=${tab}`, { scroll: false });
+  };
 
   useEffect(() => {
     // Don't make API calls while auth is loading
@@ -132,8 +148,10 @@ export default function IncomingRequestsPage() {
   useEffect(() => {
     let filtered = allRequests;
 
-    // Role filter based on active tab
-    filtered = filtered.filter(request => request.role === activeTab);
+    // Role filter based on active tab (properties tab uses separate UI)
+    if (activeTab === 'tenant' || activeTab === 'landlord') {
+      filtered = filtered.filter((request) => request.role === activeTab);
+    }
 
     // Search filter
     if (searchTerm.trim()) {
@@ -370,7 +388,7 @@ export default function IncomingRequestsPage() {
     return count;
   };
 
-  if (authLoading || loading) {
+  if (authLoading || (activeTab !== 'properties' && loading)) {
     return (
       <div className="flex-1 flex flex-col bg-gray-50 min-h-screen">
         <div className="flex items-center justify-center h-64">
@@ -397,20 +415,25 @@ export default function IncomingRequestsPage() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">Document Verifications</h1>
-            <p className="text-gray-500 text-sm sm:text-base mt-1">Review and manage verification requests from landlords and tenants</p>
+            <p className="text-gray-500 text-sm sm:text-base mt-1">
+              Review user KYC and property proof — tenants, landlords, and property listings.
+            </p>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="text-sm text-gray-500">
-              {filteredRequests.length} of {allRequests.length} requests
+          {activeTab !== 'properties' && (
+            <div className="flex items-center gap-3">
+              <div className="text-sm text-gray-500">
+                {filteredRequests.length} of {allRequests.length} requests
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Tabs */}
         <div className="mt-4 sm:mt-6">
           <div className="flex border-b border-gray-200">
             <button
-              onClick={() => setActiveTab('tenant')}
+              type="button"
+              onClick={() => navigateTab('tenant')}
               className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === 'tenant'
                   ? 'border-blue-500 text-blue-600'
@@ -420,7 +443,8 @@ export default function IncomingRequestsPage() {
               Tenants ({allRequests.filter(r => r.role === 'tenant').length})
             </button>
             <button
-              onClick={() => setActiveTab('landlord')}
+              type="button"
+              onClick={() => navigateTab('landlord')}
               className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === 'landlord'
                   ? 'border-green-500 text-green-600'
@@ -429,10 +453,22 @@ export default function IncomingRequestsPage() {
             >
               Landlords ({allRequests.filter(r => r.role === 'landlord').length})
             </button>
+            <button
+              type="button"
+              onClick={() => navigateTab('properties')}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'properties'
+                  ? 'border-purple-500 text-purple-700'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Properties
+            </button>
           </div>
         </div>
 
         {/* Search and Filters */}
+        {activeTab !== 'properties' && (
         <div className="mt-4 sm:mt-6">
           <div className="flex flex-col sm:flex-row gap-3">
             {/* Search */}
@@ -464,10 +500,15 @@ export default function IncomingRequestsPage() {
             </div>
           </div>
         </div>
+        )}
       </div>
 
       {/* iOS-style Content */}
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+        {activeTab === 'properties' ? (
+          <PropertyVerificationQueue enabled />
+        ) : (
+          <>
         {error && (
           <div className="mx-4 sm:mx-6 mt-4 bg-red-50/80 backdrop-blur-sm border border-red-200/50 rounded-2xl p-4">
             <p className="text-red-800 text-sm sm:text-base">{error}</p>
@@ -587,10 +628,12 @@ export default function IncomingRequestsPage() {
             </div>
           </div>
         )}
+          </>
+        )}
       </div>
 
       {/* Pagination */}
-      {totalPages > 1 && (
+      {activeTab !== 'properties' && totalPages > 1 && (
         <div className="bg-white border-t border-gray-200/60 px-4 sm:px-6 py-4">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="text-sm text-gray-700 text-center sm:text-left">
@@ -1034,5 +1077,20 @@ export default function IncomingRequestsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function IncomingRequestsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex-1 flex flex-col bg-gray-50 min-h-screen items-center justify-center p-8">
+          <div className="w-10 h-10 border-2 border-gray-200 border-t-blue-500 rounded-full animate-spin" />
+          <p className="mt-4 text-sm text-gray-600">Loading…</p>
+        </div>
+      }
+    >
+      <IncomingRequestsPageInner />
+    </Suspense>
   );
 }

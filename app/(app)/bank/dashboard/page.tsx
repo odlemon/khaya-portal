@@ -7,7 +7,16 @@ import { useAuth } from '@/app/context/AuthContext';
 import { useBankAdminService } from '@/app/services/bank-admin/bank-admin.service';
 import type { BankAdminSummaryData, HeldEscrowLandlord } from '@/app/services/bank-admin/bank-admin.types';
 import { formatUsd } from '@/app/lib/formatMoney';
-import { Landmark, Loader2, RefreshCw, Wallet, ArrowRightLeft, ListChecks, Info } from 'lucide-react';
+import {
+  Landmark,
+  Loader2,
+  RefreshCw,
+  Wallet,
+  ArrowRightLeft,
+  ListChecks,
+  Info,
+  Shield,
+} from 'lucide-react';
 
 function normalizeHeldList(data: unknown): HeldEscrowLandlord[] {
   if (!data) return [];
@@ -57,6 +66,19 @@ function parseDistributedRowsAwaiting(raw: unknown): number | null {
     if (typeof o.escrowTransactionCount === 'number') return o.escrowTransactionCount;
   }
   return null;
+}
+
+/** Insurance premium rows distributed but insurer remittance not yet marked paid. */
+function parseInsuranceRemittanceAwaiting(raw: unknown): { count: number; totalPremium?: number } {
+  if (raw == null) return { count: 0 };
+  if (typeof raw === 'number') return { count: raw };
+  if (typeof raw === 'object') {
+    const o = raw as Record<string, unknown>;
+    const count = typeof o.escrowTransactionCount === 'number' ? o.escrowTransactionCount : 0;
+    const totalPremium = typeof o.totalInsurancePremium === 'number' ? o.totalInsurancePremium : undefined;
+    return { count, totalPremium };
+  }
+  return { count: 0 };
 }
 
 function asNumber(val: unknown): number | undefined {
@@ -111,9 +133,13 @@ export default function BankPartnerDashboardPage() {
 
   const esc = summary?.escrow || {};
   const lp = summary?.landlordPayouts || {};
+  const ins = summary?.insurancePartnerPayouts || {};
   const awaitingStats = parsePayoutPipelineStats(lp.recordsAwaitingSettlement);
   const settledStats = parsePayoutPipelineStats(lp.settledOutsideSystemLifetime);
   const awaitingRows = parseDistributedRowsAwaiting(lp.distributedEscrowRowsAwaitingBankConfirmation);
+  const insAwaitingStats = parsePayoutPipelineStats(ins.recordsAwaitingSettlement);
+  const insSettledStats = parsePayoutPipelineStats(ins.settledOutsideSystemLifetime);
+  const insRemitAwait = parseInsuranceRemittanceAwaiting(ins.distributedEscrowRowsAwaitingInsuranceRemittance);
 
   const notes = summary?.notes;
   const notesEntries =
@@ -135,8 +161,8 @@ export default function BankPartnerDashboardPage() {
         <div>
           <h1 className="text-2xl font-semibold text-gray-900">Bank dashboard</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Escrow visibility and landlord payout settlement. Khayalami admin runs distribution; you mark payouts paid
-            after external transfer.
+            Escrow visibility, landlord rent payouts, and insurance premium batches. Khayalami runs distribution; you
+            record external transfers when marking payouts paid.
           </p>
         </div>
         <button
@@ -161,7 +187,7 @@ export default function BankPartnerDashboardPage() {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
               <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-5">
                 <div className="flex items-center justify-between">
                   <div>
@@ -187,7 +213,7 @@ export default function BankPartnerDashboardPage() {
               <div className="rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 to-amber-100 p-5">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-amber-900">Awaiting your settlement</p>
+                    <p className="text-sm font-medium text-amber-900">Landlord payouts awaiting you</p>
                     <p className="text-2xl font-bold text-gray-900 mt-1">{awaitingStats.count}</p>
                     <p className="text-xs text-amber-900 mt-1">Sum {formatUsd(awaitingStats.sum)}</p>
                   </div>
@@ -197,14 +223,51 @@ export default function BankPartnerDashboardPage() {
               <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-emerald-100 p-5">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-emerald-800">Settled (lifetime)</p>
+                    <p className="text-sm font-medium text-emerald-800">Landlord settled (lifetime)</p>
                     <p className="text-2xl font-bold text-gray-900 mt-1">{settledStats.count}</p>
                     <p className="text-xs text-emerald-900 mt-1">Sum {formatUsd(settledStats.sum)}</p>
                   </div>
                   <ArrowRightLeft className="w-10 h-10 text-emerald-600 opacity-80" />
                 </div>
               </div>
+              <div className="rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 to-violet-100 p-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-violet-900">Insurance batches awaiting you</p>
+                    <p className="text-2xl font-bold text-gray-900 mt-1">{insAwaitingStats.count}</p>
+                    <p className="text-xs text-violet-900 mt-1">Sum {formatUsd(insAwaitingStats.sum)}</p>
+                  </div>
+                  <Shield className="w-10 h-10 text-violet-600 opacity-80" />
+                </div>
+              </div>
+              <div className="rounded-2xl border border-fuchsia-200 bg-gradient-to-br from-fuchsia-50 to-fuchsia-100 p-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-fuchsia-900">Insurance settled (lifetime)</p>
+                    <p className="text-2xl font-bold text-gray-900 mt-1">{insSettledStats.count}</p>
+                    <p className="text-xs text-fuchsia-900 mt-1">Sum {formatUsd(insSettledStats.sum)}</p>
+                  </div>
+                  <Shield className="w-10 h-10 text-fuchsia-600 opacity-80" />
+                </div>
+              </div>
             </div>
+
+            {insRemitAwait.count > 0 && (
+              <div className="rounded-xl border border-violet-200 bg-white px-4 py-3 text-sm text-gray-700 flex flex-wrap items-start gap-2">
+                <Info className="w-5 h-5 text-violet-500 shrink-0 mt-0.5" />
+                <span>
+                  <span className="font-medium text-gray-900">{insRemitAwait.count}</span> distributed escrow row
+                  {insRemitAwait.count !== 1 ? 's' : ''} with insurance premium still awaiting insurer remittance (
+                  <code className="text-xs bg-gray-100 px-1 rounded">insurancePartnerPayoutStatus</code> not paid).
+                  {insRemitAwait.totalPremium != null && (
+                    <>
+                      {' '}
+                      Premium on those lines: <span className="font-medium">{formatUsd(insRemitAwait.totalPremium)}</span>.
+                    </>
+                  )}
+                </span>
+              </div>
+            )}
 
             {awaitingRows != null && (
               <div className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-700 flex items-start gap-2">
@@ -243,12 +306,14 @@ export default function BankPartnerDashboardPage() {
                   <h2 className="text-lg font-semibold text-gray-900">Held escrow by landlord</h2>
                   <p className="text-sm text-gray-500">Before platform distribution — funds still held per landlord.</p>
                 </div>
-                <Link
-                  href="/bank/settlement-queue"
-                  className="text-sm font-medium text-slate-700 hover:text-slate-900"
-                >
-                  Settlement queue →
-                </Link>
+                <div className="flex flex-wrap gap-3 text-sm font-medium">
+                  <Link href="/bank/settlement-queue" className="text-slate-700 hover:text-slate-900">
+                    Landlord queue →
+                  </Link>
+                  <Link href="/bank/insurance-settlement-queue" className="text-violet-800 hover:text-violet-950">
+                    Insurance settlements →
+                  </Link>
+                </div>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm min-w-[720px]">

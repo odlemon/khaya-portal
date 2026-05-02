@@ -8,9 +8,12 @@ import { throwIfPartnerForbidden } from '../../lib/partnerApi';
 import type {
   BankAdminSummaryData,
   BankHeldEscrowData,
+  BankInsurancePayoutDetail,
+  BankInsurancePayoutsListData,
   BankPayoutDetail,
   BankPayoutStatusFilter,
   BankPayoutsListData,
+  MarkInsurancePayoutPaidResponse,
   MarkPayoutPaidResponse,
 } from './bank-admin.types';
 
@@ -87,5 +90,67 @@ export function useBankAdminService() {
     [fetchWithAuth, base]
   );
 
-  return { getSummary, getHeldByLandlord, getPayouts, getPayoutById, markPayoutPaid };
+  const getInsurancePayouts = useCallback(
+    async (params: {
+      page?: number;
+      limit?: number;
+      status?: BankPayoutStatusFilter;
+    }): Promise<{ success: boolean; data?: BankInsurancePayoutsListData; message?: string }> => {
+      const page = params.page ?? 1;
+      const limit = Math.min(params.limit ?? 20, 100);
+      const status = params.status ?? 'all';
+      const q = new URLSearchParams({ page: String(page), limit: String(limit), status });
+      const res = await fetchWithAuth(`${base}/insurance-payouts?${q.toString()}`);
+      const json = await res.json().catch(() => ({}));
+      throwIfPartnerForbidden(res, json);
+      if (!res.ok) throw new Error(json.message || `Insurance payouts failed (${res.status})`);
+      return json;
+    },
+    [fetchWithAuth, base]
+  );
+
+  const getInsurancePayoutById = useCallback(
+    async (payoutId: string): Promise<{ success: boolean; data?: BankInsurancePayoutDetail; message?: string }> => {
+      const res = await fetchWithAuth(`${base}/insurance-payouts/${encodeURIComponent(payoutId)}`);
+      const json = await res.json().catch(() => ({}));
+      throwIfPartnerForbidden(res, json);
+      if (!res.ok) throw new Error(json.message || `Insurance payout detail failed (${res.status})`);
+      return json;
+    },
+    [fetchWithAuth, base]
+  );
+
+  const markInsurancePayoutPaid = useCallback(
+    async (
+      payoutId: string,
+      body: { externalReference?: string; notes?: string }
+    ): Promise<MarkInsurancePayoutPaidResponse> => {
+      const res = await fetchWithAuth(`${base}/insurance-payouts/${encodeURIComponent(payoutId)}/mark-paid`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const json = (await res.json().catch(() => ({}))) as MarkInsurancePayoutPaidResponse;
+      throwIfPartnerForbidden(res, json);
+      if (!res.ok) {
+        const msg = json.message || `Mark insurance paid failed (${res.status})`;
+        const err = new Error(msg) as Error & { status?: number };
+        err.status = res.status;
+        throw err;
+      }
+      return json;
+    },
+    [fetchWithAuth, base]
+  );
+
+  return {
+    getSummary,
+    getHeldByLandlord,
+    getPayouts,
+    getPayoutById,
+    markPayoutPaid,
+    getInsurancePayouts,
+    getInsurancePayoutById,
+    markInsurancePayoutPaid,
+  };
 }

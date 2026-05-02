@@ -31,6 +31,31 @@ export interface UsersResponse {
   };
 }
 
+export interface TerminatedUser extends User {
+  adminTerminatedAt?: string;
+  adminTerminationReason?: string;
+  adminTerminatedBy?: Record<string, unknown> | string | null;
+}
+
+export interface TerminatedUsersResponse {
+  success: boolean;
+  message?: string;
+  data: {
+    users: TerminatedUser[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      pages: number;
+    };
+  };
+}
+
+/** Result of terminate / reinstate admin actions. */
+export type TerminateAccountResult =
+  | { ok: true; status: 200 }
+  | { ok: false; status: number; code?: string; message?: string };
+
 export function useUsersService() {
   const fetchWithAuth = useFetchWithAuth();
 
@@ -62,9 +87,90 @@ export function useUsersService() {
     return await getUsers('landlord', page, limit);
   }, [getUsers]);
 
-  return useMemo(() => ({
-    getUsers,
-    getTenants,
-    getLandlords,
-  }), [getUsers, getTenants, getLandlords]);
+  const getTerminatedUsers = useCallback(
+    async (
+      page: number = 1,
+      limit: number = 20,
+      role?: 'tenant' | 'landlord'
+    ): Promise<TerminatedUsersResponse | null> => {
+      try {
+        const roleQ = role ? `&role=${encodeURIComponent(role)}` : '';
+        const res = await fetchWithAuth(
+          `${API_CONFIG.baseUrl}/admin/users/terminated?page=${page}&limit=${limit}${roleQ}`,
+          { headers: { Accept: 'application/json' } }
+        );
+        if (!res.ok) throw new Error('Failed to fetch terminated users');
+        return await res.json();
+      } catch (e) {
+        if (e instanceof Error && e.message.includes('Authentication is still loading')) {
+          return null;
+        }
+        console.error('Error fetching terminated users:', e);
+        return null;
+      }
+    },
+    [fetchWithAuth]
+  );
+
+  const terminateUser = useCallback(
+    async (userId: string, reason: string): Promise<TerminateAccountResult> => {
+      const res = await fetchWithAuth(`${API_CONFIG.baseUrl}/admin/users/${userId}/terminate`, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ reason }),
+      });
+      if (res.status === 200) return { ok: true, status: 200 };
+      let message = '';
+      let code: string | undefined;
+      try {
+        const j = await res.json();
+        message = j.message || j.error || '';
+        code = j.code;
+      } catch {
+        // ignore
+      }
+      return { ok: false, status: res.status, code, message };
+    },
+    [fetchWithAuth]
+  );
+
+  const reinstateUser = useCallback(
+    async (userId: string, reason: string): Promise<TerminateAccountResult> => {
+      const res = await fetchWithAuth(`${API_CONFIG.baseUrl}/admin/users/${userId}/reinstate`, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ reason }),
+      });
+      if (res.status === 200) return { ok: true, status: 200 };
+      let message = '';
+      let code: string | undefined;
+      try {
+        const j = await res.json();
+        message = j.message || j.error || '';
+        code = j.code;
+      } catch {
+        // ignore
+      }
+      return { ok: false, status: res.status, code, message };
+    },
+    [fetchWithAuth]
+  );
+
+  return useMemo(
+    () => ({
+      getUsers,
+      getTenants,
+      getLandlords,
+      getTerminatedUsers,
+      terminateUser,
+      reinstateUser,
+    }),
+    [getUsers, getTenants, getLandlords, getTerminatedUsers, terminateUser, reinstateUser]
+  );
 }

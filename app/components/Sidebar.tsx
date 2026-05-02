@@ -9,7 +9,7 @@ import authService from "../services/auth/auth.service";
 import type { UserDetailsData } from "../services/auth/types";
 import { useAuth } from '../context/AuthContext';
 import PartnerSidebar from './PartnerSidebar';
-import { isBankAdminRole, isInsuranceAdminRole, isPartnerPortalPath } from '../lib/portals';
+import { isBankAdminRole, isInsuranceAdminRole, isKhayalamiAdminRole, isPartnerPortalPath } from '../lib/portals';
 
 const menuItems = [
   {
@@ -164,6 +164,11 @@ const sidebarIcons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 10c-4.41 0-8-1.79-8-4V6c0-2.21 3.59-4 8-4s8 1.79 8 4v8c0 2.21-3.59 4-8 4z" />
     </svg>
   ),
+  terminated: (
+    <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728L5.636 5.636m12.728 12.728L18.364 5.636M5.636 18.364l12.728-12.728" />
+    </svg>
+  ),
 };
 
 // Helper to map menu item name to sidebarIcons key
@@ -202,6 +207,7 @@ const getSidebarIcon = (name: string) => {
     case 'Messages': return sidebarIcons.messages;
     case 'Vendors': return sidebarIcons.vendors;
     case 'Maintenance': return sidebarIcons.maintenance;
+    case 'Terminated accounts': return sidebarIcons.terminated;
     default: return null;
   }
 };
@@ -282,7 +288,13 @@ export default function Sidebar() {
     }, 1000);
   }, [router]);
 
-  if (isInsuranceAdminRole(user?.role) || isBankAdminRole(user?.role)) {
+  // Partner nav (incl. bank insurance settlements) lives in PartnerSidebar — not in menuItems below.
+  // Show it when role matches, or when already under /bank or /insurance so a mismatched role string still gets the right chrome until session is fixed.
+  if (
+    isInsuranceAdminRole(user?.role) ||
+    isBankAdminRole(user?.role) ||
+    (Boolean(user) && isPartnerPortalPath(pathname))
+  ) {
     return <PartnerSidebar />;
   }
 
@@ -392,6 +404,36 @@ export default function Sidebar() {
                     </button>
                   );
                 })}
+                {isKhayalamiAdminRole(user?.role) && (
+                  <button
+                    type="button"
+                    onClick={() => handleNavigation('/terminated-accounts')}
+                    onMouseEnter={() => handleMouseEnter('/terminated-accounts')}
+                    disabled={navigating === '/terminated-accounts'}
+                    className={`w-full flex items-center px-3 py-2.5 text-sm rounded-xl transition-all duration-200 ${
+                      pathname === '/terminated-accounts'
+                        ? 'bg-blue-50 text-blue-600 font-medium'
+                        : navigating === '/terminated-accounts'
+                        ? 'bg-gray-50 text-gray-600'
+                        : 'text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    <div
+                      className={`w-5 h-5 mr-3 ${
+                        pathname === '/terminated-accounts' ? 'text-blue-600' : 'text-gray-500'
+                      }`}
+                    >
+                      {navigating === '/terminated-accounts' ? (
+                        <svg className="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                      ) : (
+                        getSidebarIcon('Terminated accounts')
+                      )}
+                    </div>
+                    Terminated accounts
+                  </button>
+                )}
               </div>
             </div>
 

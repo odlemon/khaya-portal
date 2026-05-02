@@ -18,9 +18,17 @@ export interface BankLandlordPayoutsSummary {
   distributedEscrowRowsAwaitingBankConfirmation?: number | Record<string, unknown>;
 }
 
+/** Summary slice for insurance partner payout batches (from GET /bank-admin/summary). */
+export interface BankInsurancePartnerPayoutsSummary {
+  recordsAwaitingSettlement?: BankPayoutPipelineStats | Record<string, unknown>;
+  settledOutsideSystemLifetime?: BankPayoutPipelineStats | Record<string, unknown>;
+  distributedEscrowRowsAwaitingInsuranceRemittance?: number | Record<string, unknown>;
+}
+
 export interface BankAdminSummaryData {
   escrow?: BankEscrowSummary;
   landlordPayouts?: BankLandlordPayoutsSummary;
+  insurancePartnerPayouts?: BankInsurancePartnerPayoutsSummary;
   notes?: string | Record<string, string>;
 }
 
@@ -124,4 +132,64 @@ export interface MarkPayoutPaidResponse {
   success: boolean;
   message?: string;
   data?: MarkPayoutPaidData;
+}
+
+export interface BankInsurancePayoutListItem {
+  payoutId?: string;
+  _id?: string;
+  payoutType?: string;
+  recipientType?: string;
+  isLegacyKhayalamiInsuranceBatch?: boolean;
+  amount?: number;
+  status?: string;
+  payoutMethod?: string;
+  bankDetails?: Record<string, unknown> | null;
+  mobileMoneyDetails?: Record<string, unknown> | null;
+  externalReference?: string | null;
+  processedAt?: string | null;
+  notes?: string;
+  createdAt?: string;
+  escrowTransactionCount?: number;
+}
+
+export interface BankInsurancePayoutsListData {
+  payouts: BankInsurancePayoutListItem[];
+  pagination?: {
+    page?: number;
+    limit?: number;
+    total?: number;
+    totalPages?: number;
+  };
+}
+
+export interface BankInsuranceEscrowLine extends BankEscrowLineInPayout {
+  escrowTransactionId?: string;
+  totalAmount?: number;
+  khayalamiAmount?: number;
+  distributedAt?: string;
+  rentalId?: string;
+  insurancePremium?: number;
+  deductions?: Record<string, unknown>;
+  insurancePartnerPayoutStatus?: string;
+  insurancePartnerPayoutDate?: string;
+  landlord?: BankLandlordRef;
+  property?: Record<string, unknown>;
+}
+
+export interface BankInsurancePayoutDetail extends BankInsurancePayoutListItem {
+  escrowTransactions?: BankInsuranceEscrowLine[];
+}
+
+export interface MarkInsurancePayoutPaidData {
+  payoutId?: string;
+  status?: string;
+  processedAt?: string;
+  externalReference?: string;
+  escrowTransactionsUpdated?: number;
+}
+
+export interface MarkInsurancePayoutPaidResponse {
+  success: boolean;
+  message?: string;
+  data?: MarkInsurancePayoutPaidData;
 }

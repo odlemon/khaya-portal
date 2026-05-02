@@ -17,7 +17,20 @@ const insuranceNav = [
 const bankNav = [
   { name: "Dashboard", path: "/bank/dashboard" },
   { name: "Settlement queue", path: "/bank/settlement-queue" },
+  { name: "Insurance settlements", path: "/bank/insurance-settlement-queue" },
 ];
+
+/** Prefer URL so bank vs insurance nav stays correct if `user.role` is missing or non-canonical. */
+function partnerPortalVariant(
+  pathname: string | null | undefined,
+  role: string | undefined
+): "bank" | "insurance" {
+  if (pathname?.startsWith("/bank")) return "bank";
+  if (pathname?.startsWith("/insurance")) return "insurance";
+  if (isInsuranceAdminRole(role)) return "insurance";
+  if (isBankAdminRole(role)) return "bank";
+  return "insurance";
+}
 
 function getInitials(name: string, email?: string) {
   if (!name || name.trim() === "" || name.trim() === "undefined undefined") {
@@ -35,11 +48,7 @@ export default function PartnerSidebar() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [navigating, setNavigating] = useState<string | null>(null);
 
-  const variant = isInsuranceAdminRole(user?.role)
-    ? "insurance"
-    : isBankAdminRole(user?.role)
-      ? "bank"
-      : "insurance";
+  const variant = partnerPortalVariant(pathname, user?.role);
 
   const navItems = variant === "insurance" ? insuranceNav : bankNav;
   const title =
@@ -50,9 +59,9 @@ export default function PartnerSidebar() {
       : "Escrow & settlements (partner)";
 
   useEffect(() => {
-    const items = variant === "insurance" ? insuranceNav : bankNav;
+    const items = partnerPortalVariant(pathname, user?.role) === "insurance" ? insuranceNav : bankNav;
     items.forEach((item) => router.prefetch(item.path));
-  }, [router, variant]);
+  }, [router, pathname, user?.role]);
 
   const handleNavigation = useCallback(
     (path: string) => {
