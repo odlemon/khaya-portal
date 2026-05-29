@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { io, Socket } from 'socket.io-client';
 
-const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'https://khaya-server.vercel.app';
+const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://31.220.82.129:4002';
 
 class SocketService {
   private socket: Socket | null = null;
