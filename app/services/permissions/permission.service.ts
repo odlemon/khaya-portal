@@ -16,7 +16,9 @@ export interface Role {
 }
 
 class PermissionService {
-  private baseUrl = `${API_CONFIG.baseUrl}/roles`;
+  private get rolesBase() {
+    return `${API_CONFIG.baseUrl}/roles`;
+  }
 
   async getUserRole(token: string): Promise<Role | null> {
     try {
@@ -28,7 +30,7 @@ class PermissionService {
       }
 
       // Fetch the role details
-      const response = await fetch(`${this.baseUrl}/${roleId}`, {
+      const response = await fetch(`${this.rolesBase}/${roleId}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },

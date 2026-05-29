@@ -1,8 +1,12 @@
 // @ts-nocheck
+import { getApiBaseURL } from './api.config';
+
 const config = {
-    api: {
-      baseUrl: process.env.NEXT_PUBLIC_API_URL || 'http://31.220.82.129:4002/api',
+  api: {
+    get baseUrl() {
+      return getApiBaseURL();
     },
-  } as const;
-  
-  export default config; 
+  },
+};
+
+export default config;

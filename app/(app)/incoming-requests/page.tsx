@@ -5,7 +5,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useFetchWithAuth } from '@/app/context/fetchWithAuth';
 import { useAuth } from '@/app/context/AuthContext';
-import { API_CONFIG } from '@/app/config/api.config';
+import { API_CONFIG, resolveAssetUrl } from '@/app/config/api.config';
 import { 
   CheckCircle, 
   XCircle, 
@@ -194,12 +194,13 @@ function IncomingRequestsPageInner() {
 
   const renderIDPreview = (url: string, alt: string) => {
     const fileType = getFileType(url);
+    const assetUrl = resolveAssetUrl(url);
     
     if (fileType === 'image') {
       return (
         <div className="relative aspect-[4/3] bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
           <img
-            src={url}
+            src={assetUrl}
             alt={alt}
             className="w-full h-full object-contain"
           />
@@ -209,7 +210,7 @@ function IncomingRequestsPageInner() {
       return (
         <div className="relative aspect-[4/3] bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
           <iframe
-            src={url}
+            src={assetUrl}
             className="w-full h-full"
             title={alt}
           />
@@ -234,7 +235,7 @@ function IncomingRequestsPageInner() {
     return (
       <div className="relative aspect-[4/3] bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
         <img
-          src={url}
+          src={resolveAssetUrl(url)}
           alt={alt}
           className="w-full h-full object-contain"
         />

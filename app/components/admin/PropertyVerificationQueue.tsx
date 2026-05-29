@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { usePropertiesService, type Property } from '@/app/services/properties/properties.service';
 import { useAuth } from '@/app/context/AuthContext';
 import { useFetchWithAuth } from '@/app/context/fetchWithAuth';
-import { API_CONFIG } from '@/app/config/api.config';
+import { API_CONFIG, resolveAssetUrl } from '@/app/config/api.config';
 import { FileText, Download, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 
 type Props = {
@@ -248,7 +248,7 @@ export default function PropertyVerificationQueue({ enabled }: Props) {
                 >
                   <div className="aspect-video bg-gray-100 relative overflow-hidden">
                     {property.images?.mainImage ? (
-                      <img src={property.images.mainImage} alt={property.title} className="w-full h-full object-cover" />
+                      <img src={resolveAssetUrl(property.images.mainImage)} alt={property.title} className="w-full h-full object-cover" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-gray-400 text-sm">No image</div>
                     )}
@@ -352,7 +352,7 @@ export default function PropertyVerificationQueue({ enabled }: Props) {
                     <div>
                       <h3 className="text-lg font-semibold text-gray-900 mb-3">Main Image</h3>
                       <div className="aspect-video bg-gray-100 rounded-xl overflow-hidden">
-                        <img src={selectedProperty.images.mainImage} alt="" className="w-full h-full object-cover" />
+                        <img src={resolveAssetUrl(selectedProperty.images.mainImage)} alt="" className="w-full h-full object-cover" />
                       </div>
                     </div>
                   )}
@@ -362,7 +362,7 @@ export default function PropertyVerificationQueue({ enabled }: Props) {
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                         {selectedProperty.images.gallery.map((image, index) => (
                           <div key={index} className="aspect-video bg-gray-100 rounded-lg overflow-hidden">
-                            <img src={image} alt="" className="w-full h-full object-cover" />
+                            <img src={resolveAssetUrl(image)} alt="" className="w-full h-full object-cover" />
                           </div>
                         ))}
                       </div>
@@ -372,7 +372,7 @@ export default function PropertyVerificationQueue({ enabled }: Props) {
                     <div>
                       <h3 className="text-lg font-semibold text-gray-900 mb-3">Floor Plan</h3>
                       <div className="aspect-video bg-gray-100 rounded-xl overflow-hidden">
-                        <img src={selectedProperty.images.floorPlan} alt="" className="w-full h-full object-cover" />
+                        <img src={resolveAssetUrl(selectedProperty.images.floorPlan)} alt="" className="w-full h-full object-cover" />
                       </div>
                     </div>
                   )}
@@ -380,7 +380,7 @@ export default function PropertyVerificationQueue({ enabled }: Props) {
                     <div>
                       <h3 className="text-lg font-semibold text-gray-900 mb-3">Virtual Tour</h3>
                       <div className="aspect-video bg-gray-100 rounded-xl overflow-hidden">
-                        <iframe src={selectedProperty.images.virtualTour} className="w-full h-full" title="Virtual tour" />
+                        <iframe src={resolveAssetUrl(selectedProperty.images.virtualTour)} className="w-full h-full" title="Virtual tour" />
                       </div>
                     </div>
                   )}

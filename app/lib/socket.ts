@@ -1,7 +1,6 @@
 // @ts-nocheck
 import { io, Socket } from 'socket.io-client';
-
-const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://31.220.82.129:4002';
+import { getSocketURL } from '../config/api.config';
 
 class SocketService {
   private socket: Socket | null = null;
@@ -15,7 +14,8 @@ class SocketService {
     this.disconnect();
     this.lastToken = token;
 
-    this.socket = io(SOCKET_URL, {
+    const socketUrl = getSocketURL();
+    this.socket = io(socketUrl, {
       auth: { token },
       transports: ['websocket', 'polling'],
       reconnection: true,

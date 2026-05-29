@@ -2,11 +2,13 @@
 import { API_CONFIG } from '../../config/api.config';
 
 class UserService {
-  private baseUrl = `${API_CONFIG.baseUrl}/users`;
+  private get usersBase() {
+    return `${API_CONFIG.baseUrl}/users`;
+  }
 
   async getUsers(token: string) {
     try {
-      const response = await fetch(this.baseUrl, {
+      const response = await fetch(this.usersBase, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -21,7 +23,7 @@ class UserService {
 
   async addUser(token: string, data: Omit<any, 'id'>) {
     try {
-      const response = await fetch(this.baseUrl, {
+      const response = await fetch(this.usersBase, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -39,7 +41,7 @@ class UserService {
 
   async updateUser(token: string, userId: string, data: any) {
     try {
-      const response = await fetch(`${this.baseUrl}/${userId}`, {
+      const response = await fetch(`${this.usersBase}/${userId}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -57,7 +59,7 @@ class UserService {
 
   async deleteUser(token: string, userId: string) {
     try {
-      const response = await fetch(`${this.baseUrl}/${userId}`, {
+      const response = await fetch(`${this.usersBase}/${userId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,

@@ -3,12 +3,17 @@ import { RegisterData, AuthResponse, LoginData, MeResponse } from './types';
 import { API_CONFIG } from '../../config/api.config';
 
 class AuthService {
-  private baseUrl = `${API_CONFIG.baseUrl}/auth`;
-  private meUrl = `${API_CONFIG.baseUrl}/auth/me`;
+  private get authBase() {
+    return `${API_CONFIG.baseUrl}/auth`;
+  }
+
+  private get meUrl() {
+    return `${this.authBase}/me`;
+  }
 
   async register(data: RegisterData): Promise<AuthResponse> {
     try {
-      const response = await fetch(`${this.baseUrl}/register`, {
+      const response = await fetch(`${this.authBase}/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -54,7 +59,7 @@ class AuthService {
 
   async login(data: LoginData): Promise<AuthResponse> {
     try {
-      const response = await fetch(`${this.baseUrl}/login`, {
+      const response = await fetch(`${this.authBase}/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
