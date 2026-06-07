@@ -30,6 +30,8 @@ export function isKhayalamiAdminRole(role: string | undefined | null): boolean {
     k === 'admin' ||
     k === 'super_admin' ||
     k === 'superadmin' ||
+    k === 'system_admin' ||
+    k === 'systemadmin' ||
     k === 'khayalami_admin' ||
     k === 'khaya_admin' ||
     k === 'khayalamiadmin'

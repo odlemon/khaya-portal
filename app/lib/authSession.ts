@@ -6,10 +6,16 @@
 export const SESSION_TOKEN_KEY = 'khaya_auth_token';
 export const SESSION_USER_KEY = 'khaya_auth_user';
 
+function normalizeToken(raw: string | null | undefined): string | null {
+  if (raw == null) return null;
+  const trimmed = raw.trim();
+  return trimmed || null;
+}
+
 export function getToken(): string | null {
   if (typeof window === 'undefined') return null;
   try {
-    return sessionStorage.getItem(SESSION_TOKEN_KEY);
+    return normalizeToken(sessionStorage.getItem(SESSION_TOKEN_KEY));
   } catch {
     return null;
   }
@@ -27,7 +33,9 @@ export function getUserJson(): string | null {
 export function setSession(params: { token: string; userJson: string }): void {
   if (typeof window === 'undefined') return;
   try {
-    sessionStorage.setItem(SESSION_TOKEN_KEY, params.token);
+    const token = normalizeToken(params.token);
+    if (!token) return;
+    sessionStorage.setItem(SESSION_TOKEN_KEY, token);
     sessionStorage.setItem(SESSION_USER_KEY, params.userJson);
   } catch (e) {
     console.error('authSession.setSession failed:', e);

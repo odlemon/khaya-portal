@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { useFetchWithAuth } from '../context/fetchWithAuth';
 import { useRouter } from 'next/navigation';
 import { usePathname } from 'next/navigation';
+import NotificationBell from './NotificationBell';
 
 // Helper to get initials safely
 function getInitials(user: any) {
@@ -96,6 +97,7 @@ export default function Navbar() {
         <div className="flex items-center justify-end px-4 md:px-8 py-3 md:py-4">
           {/* Right Side Actions */}
           <div className="flex items-center">
+            <NotificationBell pathname={pathname} />
             {/* Profile Dropdown */}
             <div className="relative">
               <button

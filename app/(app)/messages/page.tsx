@@ -1,31 +1,36 @@
 // @ts-nocheck
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useChatStore } from '@/app/store/chatStore';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { formatDistanceToNow } from 'date-fns';
 import { useAuth } from '@/app/context/AuthContext';
 import { socketService } from '@/app/lib/socket';
+import {
+  formatLastMessagePreview,
+  getSenderDisplayName,
+  roleBadgeClasses,
+  roleLabel,
+} from '@/app/lib/chatDisplay';
 
 export default function MessagesPage() {
-  const { token } = useAuth();
-  const router = useRouter();
+  const { token, user } = useAuth();
   const searchParams = useSearchParams();
   const [selectedChatId, setSelectedChatId] = useState(searchParams.get('chat'));
-  
-  const { 
-    chats, 
-    currentChat, 
-    messages, 
-    setMessages,
-    loadAllChats, 
-    loadChatById, 
-    sendMessage, 
-    initSocketListeners, 
-    clearCurrentChat, 
-    isLoading, 
-    error 
+
+  const {
+    chats,
+    currentChat,
+    messages,
+    unreadByChatId,
+    typingByChatId,
+    loadAllChats,
+    openChat,
+    sendMessage,
+    clearActiveChat,
+    isLoading,
+    error,
   } = useChatStore();
   
   const [messageText, setMessageText] = useState('');
@@ -37,13 +42,13 @@ export default function MessagesPage() {
   const [isChatListOpen, setIsChatListOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isTypingRef = useRef(false);
 
   useEffect(() => {
     if (!token) return;
-    socketService.connect(token);
     loadAllChats();
-    initSocketListeners();
-  }, [token, loadAllChats, initSocketListeners]);
+  }, [token, loadAllChats]);
 
   // Sync selectedChatId with URL changes
   useEffect(() => {
@@ -55,21 +60,18 @@ export default function MessagesPage() {
 
   useEffect(() => {
     if (selectedChatId) {
-      console.log('Loading chat:', selectedChatId);
       setChatLoading(true);
-      loadChatById(selectedChatId)
+      openChat(selectedChatId)
         .then(() => {
-          console.log('Chat loaded successfully');
           setChatLoading(false);
         })
-        .catch((error) => {
-          console.error('Error loading chat:', error);
+        .catch(() => {
           setChatLoading(false);
         });
     } else {
-      clearCurrentChat();
+      clearActiveChat();
     }
-  }, [selectedChatId, loadChatById, clearCurrentChat]);
+  }, [selectedChatId, openChat, clearActiveChat]);
 
   useEffect(() => {
     // Auto-scroll to bottom when messages change or chat loads
@@ -117,12 +119,36 @@ export default function MessagesPage() {
     }, 200);
   };
 
+  const notifyTyping = useCallback(
+    (chatId: string) => {
+      if (!isTypingRef.current) {
+        isTypingRef.current = true;
+        socketService.startTyping(chatId);
+      }
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = setTimeout(() => {
+        isTypingRef.current = false;
+        socketService.stopTyping(chatId);
+      }, 3000);
+    },
+    []
+  );
+
+  const stopTyping = useCallback((chatId: string) => {
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    if (isTypingRef.current) {
+      isTypingRef.current = false;
+      socketService.stopTyping(chatId);
+    }
+  }, []);
+
   const handleSend = async () => {
     if (!messageText.trim() || sending || !selectedChatId) return;
     
     const messageContent = messageText.trim();
     setSending(true);
     setMessageText('');
+    if (selectedChatId) stopTyping(selectedChatId);
     
     try {
       await sendMessage(selectedChatId, messageContent);
@@ -164,6 +190,7 @@ export default function MessagesPage() {
     
     setMessageText(value);
     setCursorPosition(cursorPos);
+    if (selectedChatId && value.trim()) notifyTyping(selectedChatId);
     
     // Check if there's already a complete mention in the message
     const hasMention = /@(landlord|tenant)\s/.test(value) || 
@@ -385,6 +412,7 @@ export default function MessagesPage() {
                   const landlord = chat.participants.find(p => p.role === 'landlord');
                   const property = chat.propertyId;
                   const isSelected = selectedChatId === chat._id;
+                  const unread = unreadByChatId[chat._id] || 0;
 
                   return (
                     <div
@@ -411,9 +439,16 @@ export default function MessagesPage() {
                             <h3 className="text-base font-semibold text-gray-900 truncate" style={{ color: '#111827' }}>
                               {tenant?.firstName} {tenant?.lastName}
                             </h3>
-                            <span className="text-xs text-gray-500 font-medium" style={{ color: '#6b7280' }}>
-                              {formatDistanceToNow(new Date(chat.updatedAt), { addSuffix: true })}
-                            </span>
+                            <div className="flex items-center shrink-0 gap-2">
+                              <span className="text-xs text-gray-500 font-medium" style={{ color: '#6b7280' }}>
+                                {formatDistanceToNow(new Date(chat.updatedAt), { addSuffix: true })}
+                              </span>
+                              {unread > 0 && (
+                                <span className="min-w-[20px] h-5 px-1.5 flex items-center justify-center rounded-full bg-blue-500 text-white text-xs font-bold">
+                                  {unread > 99 ? '99+' : unread}
+                                </span>
+                              )}
+                            </div>
                           </div>
                           
                           <div className="flex items-center space-x-1 mb-1">
@@ -438,7 +473,12 @@ export default function MessagesPage() {
                           {/* Last message preview */}
                           {chat.lastMessage && (
                             <p className="text-sm truncate" style={{ color: '#4b5563' }}>
-                              {chat.lastMessage.content}
+                              {formatLastMessagePreview(
+                                chat.lastMessage.content,
+                                chat.lastMessage.senderId,
+                                chat.participants,
+                                user?.id
+                              )}
                             </p>
                           )}
                           
@@ -495,6 +535,17 @@ export default function MessagesPage() {
                           {currentChat.propertyId.title}
                         </p>
                       )}
+                      {selectedChatId && typingByChatId[selectedChatId] && (
+                        <p className="text-xs text-gray-400 italic mt-0.5">
+                          {(() => {
+                            const uid = typingByChatId[selectedChatId];
+                            const p = currentChat.participants.find((x) => x._id === uid);
+                            return p
+                              ? `${p.firstName} is typing…`
+                              : 'Someone is typing…';
+                          })()}
+                        </p>
+                      )}
                     </div>
 
                     <div className="flex items-center space-x-2">
@@ -522,7 +573,7 @@ export default function MessagesPage() {
                     minHeight: '250px'
                   }}
                 >
-                  <div className="px-4 py-6 space-y-3">
+                  <div className="px-4 py-6 space-y-4">
                     
                     {messages.length === 0 ? (
                       <div className="flex flex-col items-center justify-center h-full py-12">
@@ -532,73 +583,34 @@ export default function MessagesPage() {
                           </svg>
                         </div>
                         <p className="text-gray-500 text-center">No messages yet. Start the conversation!</p>
-                        <p className="text-xs text-gray-400 mt-2">Chat ID: {selectedChatId}</p>
-                        
-                        {/* Manual test buttons */}
-                        <div className="mt-4 space-x-2">
-                          {selectedChatId && (
-                            <button
-                              onClick={() => {
-                                console.log('Manually loading chat:', selectedChatId);
-                                loadChatById(selectedChatId);
-                              }}
-                              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm"
-                            >
-                              Load Chat Manually
-                            </button>
-                          )}
-                          <button
-                            onClick={() => {
-                              console.log('Current state:', { messages, currentChat, selectedChatId });
-                              console.log('Store state:', { chats, isLoading, error });
-                            }}
-                            className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 text-sm"
-                          >
-                            Log State
-                          </button>
-                        </div>
-                        
-                        {/* Sample messages to show interface */}
-                        <div className="mt-8 space-y-4 w-full max-w-md">
-                          <div className="text-sm text-gray-400 mb-4">Sample conversation:</div>
-                          
-                          {/* Sample incoming message */}
-                          <div className="flex justify-start">
-                            <div className="max-w-xs bg-white rounded-2xl rounded-bl-md px-4 py-3 border border-gray-200">
-                              <p className="text-sm text-gray-900">Hello! How can I help you today?</p>
-                              <p className="text-xs text-gray-500 mt-1">2 minutes ago</p>
-                            </div>
-                          </div>
-                          
-                          {/* Sample outgoing message */}
-                          <div className="flex justify-end">
-                            <div className="max-w-xs bg-blue-500 text-white rounded-2xl rounded-br-md px-4 py-3">
-                              <p className="text-sm">Hi there! I have a question about my property.</p>
-                              <p className="text-xs text-blue-100 mt-1">1 minute ago</p>
-                            </div>
-                          </div>
-                          
-                          {/* Sample incoming message */}
-                          <div className="flex justify-start">
-                            <div className="max-w-xs bg-white rounded-2xl rounded-bl-md px-4 py-3 border border-gray-200">
-                              <p className="text-sm text-gray-900">Of course! What would you like to know?</p>
-                              <p className="text-xs text-gray-500 mt-1">Just now</p>
-                            </div>
-                          </div>
-                        </div>
                       </div>
                     ) : (
-                      messages.map((msg, index) => {
-                        // Determine message position based on sender role
-                        // Admin messages appear on the right, all others on the left
-                        const isFromCurrentUser = msg.senderRole === 'admin';
-                        
+                      messages.map((msg) => {
+                        const isFromCurrentUser = msg.isMine;
+                        const senderName = getSenderDisplayName(
+                          msg.senderId,
+                          msg.senderRole,
+                          currentChat.participants
+                        );
+
                         return (
                           <div
                             key={msg._id}
                             className={`flex ${isFromCurrentUser ? 'justify-end' : 'justify-start'}`}
                           >
                             <div className={`max-w-xs sm:max-w-md ${isFromCurrentUser ? 'order-2' : 'order-1'}`}>
+                              {!isFromCurrentUser && (
+                                <div className="flex items-center gap-1.5 mb-1.5 px-0.5 justify-start">
+                                  <span className="text-xs font-semibold truncate max-w-[140px] sm:max-w-[200px] text-gray-800">
+                                    {senderName}
+                                  </span>
+                                  <span
+                                    className={`shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded-full border ${roleBadgeClasses(msg.senderRole)}`}
+                                  >
+                                    {roleLabel(msg.senderRole)}
+                                  </span>
+                                </div>
+                              )}
                               {msg.isPrivate && (
                                 <div className="flex items-center gap-1 text-xs text-orange-600 mb-1 px-2">
                                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -715,6 +727,7 @@ export default function MessagesPage() {
                             value={messageText}
                             onChange={handleInputChange}
                             onKeyDown={handleKeyPress}
+                            onBlur={() => selectedChatId && stopTyping(selectedChatId)}
                             placeholder="Message"
                             className="w-full bg-transparent border-none outline-none resize-none text-sm text-black placeholder-gray-500"
                             style={{
@@ -734,8 +747,8 @@ export default function MessagesPage() {
                         {sending ? (
                           <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                         ) : (
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M2.01 21 23 12 2.01 3 2 10l15 2-15 2z" />
                           </svg>
                         )}
                       </button>

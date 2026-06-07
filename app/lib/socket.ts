@@ -1,40 +1,66 @@
-// @ts-nocheck
 import { io, Socket } from 'socket.io-client';
 import { getSocketURL } from '../config/api.config';
 
+type EventHandler = (...args: unknown[]) => void;
+
 class SocketService {
   private socket: Socket | null = null;
-  private connected: boolean = false;
+  private connected = false;
   private lastToken: string | null = null;
+  private connectCallbacks = new Set<() => void>();
+  private eventHandlers = new Map<string, Set<EventHandler>>();
 
   connect(token: string) {
     if (!token) return;
-    if (this.socket?.connected && this.lastToken === token) return;
 
-    this.disconnect();
+    // Same session — keep socket instance so Socket.IO reconnect + our handlers stay intact
+    if (this.socket && this.lastToken === token) {
+      if (this.socket.connected) return;
+      this.socket.auth = { token };
+      this.attachStoredHandlers();
+      this.socket.connect();
+      return;
+    }
+
+    if (this.socket) {
+      this.socket.removeAllListeners();
+      this.socket.disconnect();
+      this.socket = null;
+    }
+
     this.lastToken = token;
-
     const socketUrl = getSocketURL();
+
     this.socket = io(socketUrl, {
       auth: { token },
       transports: ['websocket', 'polling'],
       reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 2000,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000,
       reconnectionDelayMax: 10000,
       timeout: 20000,
     });
 
+    this.attachStoredHandlers();
+
     this.socket.on('connect', () => {
       this.connected = true;
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[portal] socket connected');
+      }
+      this.connectCallbacks.forEach((cb) => cb());
     });
 
-    this.socket.on('disconnect', () => {
+    this.socket.on('disconnect', (reason) => {
       this.connected = false;
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[portal] socket disconnected', reason);
+      }
     });
 
-    this.socket.on('connect_error', () => {
+    this.socket.on('connect_error', (err: Error) => {
       this.connected = false;
+      console.error('[portal] socket connect_error:', err.message);
     });
   }
 
@@ -46,6 +72,39 @@ class SocketService {
     }
     this.lastToken = null;
     this.connected = false;
+    this.connectCallbacks.clear();
+    this.eventHandlers.clear();
+  }
+
+  private attachStoredHandlers() {
+    if (!this.socket) return;
+    this.eventHandlers.forEach((handlers, event) => {
+      handlers.forEach((handler) => {
+        this.socket?.on(event, handler);
+      });
+    });
+  }
+
+  onConnect(callback: () => void) {
+    this.connectCallbacks.add(callback);
+    if (this.connected) callback();
+  }
+
+  offConnect(callback: () => void) {
+    this.connectCallbacks.delete(callback);
+  }
+
+  on(event: string, handler: EventHandler) {
+    if (!this.eventHandlers.has(event)) {
+      this.eventHandlers.set(event, new Set());
+    }
+    this.eventHandlers.get(event)!.add(handler);
+    this.socket?.on(event, handler);
+  }
+
+  off(event: string, handler: EventHandler) {
+    this.eventHandlers.get(event)?.delete(handler);
+    this.socket?.off(event, handler);
   }
 
   joinChat(chatId: string) {
@@ -56,26 +115,20 @@ class SocketService {
     this.socket?.emit('leave_chat', chatId);
   }
 
-  onNewMessage(callback: (data: any) => void) {
-    this.socket?.off('new_message');
-    this.socket?.on('new_message', callback);
+  startTyping(chatId: string) {
+    this.socket?.emit('typing_start', { chatId });
   }
 
-  onUserTyping(callback: (data: any) => void) {
-    this.socket?.off('user_typing');
-    this.socket?.on('user_typing', callback);
+  stopTyping(chatId: string) {
+    this.socket?.emit('typing_stop', { chatId });
   }
 
-  offNewMessage() {
-    this.socket?.off('new_message');
-  }
-
-  offUserTyping() {
-    this.socket?.off('user_typing');
+  markRead(chatId: string, messageIds: string[] = []) {
+    this.socket?.emit('mark_messages_read', { chatId, messageIds });
   }
 
   isConnected() {
-    return this.connected;
+    return this.connected && Boolean(this.socket?.connected);
   }
 
   getSocket() {
@@ -84,8 +137,3 @@ class SocketService {
 }
 
 export const socketService = new SocketService();
-
-
-
-
-

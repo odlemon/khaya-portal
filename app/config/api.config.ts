@@ -4,7 +4,7 @@
  * Local dev on http://localhost uses direct HTTP API. SSR uses BACKEND_URL when set.
  */
 
-/** Direct HTTP API (includes `/api` suffix). Used for local dev fallback and SSR. */
+/** Direct HTTP API (includes `/api` suffix). Production backend default. */
 export const DEFAULT_PRODUCTION_API_URL = 'http://31.220.82.129:4002/api';
 
 /** Origin only — rewrite target in next.config (no trailing slash). */

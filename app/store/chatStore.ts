@@ -1,209 +1,244 @@
-// @ts-nocheck
 import { create } from 'zustand';
-import { API_CONFIG } from '@/app/config/api.config';
+import chatService from '@/app/services/chat/chat.service';
+import type { Chat, Message } from '@/app/services/chat/types';
 import { socketService } from '@/app/lib/socket';
 import { getToken } from '@/app/lib/authSession';
+import { isKhayalamiAdminRole } from '@/app/lib/portals';
 
-// Helper to make authenticated fetch requests
-const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
+function getCurrentUserId(): string | null {
   const token = getToken();
-  const headers = new Headers(options.headers || {});
-  
-  if (token) {
-    headers.set('Authorization', `Bearer ${token}`);
+  if (!token) return null;
+  try {
+    const base64Url = token.split('.')[1];
+    if (!base64Url) return null;
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const payload = JSON.parse(
+      decodeURIComponent(
+        atob(base64)
+          .split('')
+          .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+          .join('')
+      )
+    );
+    return payload.userId || payload._id || payload.id || null;
+  } catch {
+    return null;
   }
-  headers.set('Content-Type', 'application/json');
-  
-  const response = await fetch(url, {
-    ...options,
-    headers,
-  });
-  
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-  }
-  
-  return response.json();
-};
-
-interface Message {
-  _id: string;
-  senderId: any;
-  senderRole: string;
-  content: string;
-  visibleTo?: string[];
-  taggedUser?: string;
-  isMine: boolean;
-  isPrivate: boolean;
-  createdAt: string;
 }
 
-interface Chat {
-  _id: string;
-  participants: any[];
-  propertyId: any;
-  lastMessage?: any;
-  isActive: boolean;
-  updatedAt: string;
-  createdAt: string;
+function bumpChatPreview(chats: Chat[], chatId: string, message: Message): Chat[] {
+  const lastMessage = {
+    content: message.content,
+    senderId:
+      typeof message.senderId === 'object' && message.senderId
+        ? message.senderId._id
+        : String(message.senderId),
+    timestamp: message.createdAt,
+  };
+
+  const existing = chats.find((c) => c._id === chatId);
+  if (existing) {
+    const updated = chats.map((chat) =>
+      chat._id === chatId
+        ? { ...chat, lastMessage, updatedAt: message.createdAt }
+        : chat
+    );
+    return [...updated].sort(
+      (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    );
+  }
+
+  return chats;
+}
+
+function processMessage(message: Message, forceMine?: boolean): Message {
+  const userId = getCurrentUserId();
+  const senderId =
+    typeof message.senderId === 'object' && message.senderId
+      ? message.senderId._id
+      : (message.senderId as unknown as string);
+  const isMine =
+    forceMine !== undefined
+      ? forceMine
+      : isKhayalamiAdminRole(message.senderRole) ||
+        Boolean(userId && senderId && String(userId) === String(senderId));
+  const senderRole =
+    message.senderRole ||
+    (forceMine || isMine ? 'admin' : message.senderRole);
+  return { ...message, senderRole, isMine: Boolean(isMine) };
 }
 
 interface ChatState {
   chats: Chat[];
   currentChat: Chat | null;
+  activeChatId: string | null;
   messages: Message[];
+  unreadByChatId: Record<string, number>;
+  typingByChatId: Record<string, string | null>;
   isLoading: boolean;
   error: string | null;
   loadAllChats: (page?: number) => Promise<void>;
-  joinChat: (chatId: string) => Promise<void>;
-  loadChatById: (chatId: string) => Promise<void>;
+  openChat: (chatId: string) => Promise<void>;
   sendMessage: (chatId: string, content: string) => Promise<void>;
+  handleNewMessage: (chatId: string, message: Message) => void;
+  setTyping: (chatId: string, userId: string, isTyping: boolean) => void;
+  applyMessagesRead: (chatId: string, messageIds: string[]) => void;
+  clearActiveChat: () => void;
+  clearUnread: (chatId: string) => void;
   setMessages: (messages: Message[]) => void;
-  initSocketListeners: () => void;
+  /** @deprecated use openChat */
+  loadChatById: (chatId: string) => Promise<void>;
+  /** @deprecated use clearActiveChat */
   clearCurrentChat: () => void;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
   chats: [],
   currentChat: null,
+  activeChatId: null,
   messages: [],
+  unreadByChatId: {},
+  typingByChatId: {},
   isLoading: false,
   error: null,
 
   loadAllChats: async (page = 1) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await fetchWithAuth(`${API_CONFIG.baseUrl}/chat/admin/all-chats?page=${page}&limit=50`);
-      console.log('Chats response:', response);
+      const response = await chatService.getAllChats(page);
       set({ chats: response.data.chats, isLoading: false });
-    } catch (error: any) {
-      set({ 
-        isLoading: false, 
-        error: error.message || 'Failed to load chats' 
-      });
-      console.error('Error loading chats:', error);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load chats';
+      set({ isLoading: false, error: message });
       throw error;
     }
   },
 
-  joinChat: async (chatId: string) => {
+  openChat: async (chatId: string) => {
+    set({ isLoading: true, error: null, activeChatId: chatId });
     try {
-      await fetchWithAuth(`${API_CONFIG.baseUrl}/chat/admin/join/${chatId}`, {
-        method: 'POST',
-      });
-      console.log('Joined chat:', chatId);
-    } catch (error: any) {
-      console.error('Error joining chat:', error);
-      // Don't throw error if already joined
-      if (!error.message?.includes('already')) {
-        throw error;
-      }
-    }
-  },
+      await chatService.joinChat(chatId);
+      const response = await chatService.getChatMessages(chatId);
+      const processedMessages = (response.data.messages || []).map((m: Message) => processMessage(m));
 
-  loadChatById: async (chatId: string) => {
-    set({ isLoading: true, error: null });
-    try {
-      // Join chat first (if not already joined)
-      await get().joinChat(chatId);
-
-      // Load messages
-      const response = await fetchWithAuth(`${API_CONFIG.baseUrl}/chat/${chatId}`);
-      console.log('Chat response:', response);
-      
-      // Process messages to ensure correct direction
-      const processedMessages = (response.data.messages || []).map((message: any) => ({
-        ...message,
-        isMine: message.senderRole === 'landlord' || message.senderRole === 'admin'
-      }));
-      
       set({
         currentChat: response.data.chat,
         messages: processedMessages,
         isLoading: false,
+        unreadByChatId: { ...get().unreadByChatId, [chatId]: 0 },
       });
 
-      // Join socket room
       socketService.joinChat(chatId);
-    } catch (error: any) {
-      set({ 
-        isLoading: false, 
-        error: error.message || 'Failed to load chat' 
-      });
-      console.error('Error loading chat:', error);
+      socketService.markRead(chatId);
+      await chatService.markChatRead(chatId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load chat';
+      set({ isLoading: false, error: message });
       throw error;
     }
+  },
+
+  loadChatById: async (chatId: string) => {
+    return get().openChat(chatId);
   },
 
   sendMessage: async (chatId: string, content: string) => {
-    try {
-      const response = await fetchWithAuth(`${API_CONFIG.baseUrl}/chat/${chatId}/messages`, {
-        method: 'POST',
-        body: JSON.stringify({ content }),
+    const response = await chatService.sendMessage(chatId, content);
+    const newMessage = processMessage(response.data, true);
+    const { messages, chats } = get();
+    if (!messages.some((m) => m._id === newMessage._id)) {
+      set({
+        messages: [...messages, newMessage],
+        chats: bumpChatPreview(chats, chatId, newMessage),
       });
-      
-      // Add to messages if not already added by socket
-      const newMessage = response.data;
-      const messages = get().messages;
-      if (!messages.some(m => m._id === newMessage._id)) {
-        // Ensure message direction is set correctly for sent messages
-        const processedMessage = {
-          ...newMessage,
-          isMine: true // Sent messages are always from current user
-        };
-        set({ messages: [...messages, processedMessage] });
+    } else {
+      set({ chats: bumpChatPreview(chats, chatId, newMessage) });
+    }
+    socketService.stopTyping(chatId);
+  },
+
+  handleNewMessage: (chatId: string, rawMessage: Message) => {
+    const message = processMessage(rawMessage);
+    const currentUserId = getCurrentUserId();
+    const senderId =
+      typeof message.senderId === 'object' && message.senderId
+        ? message.senderId._id
+        : (message.senderId as unknown as string);
+    const isOwnMessage = Boolean(currentUserId && senderId === currentUserId);
+
+    const state = get();
+    let nextMessages = state.messages;
+    let nextUnread = state.unreadByChatId;
+
+    if (state.activeChatId === chatId) {
+      const exists = state.messages.some((m) => m._id === message._id);
+      if (!exists) {
+        nextMessages = [...state.messages, message];
       }
-    } catch (error: any) {
-      console.error('Error sending message:', error);
-      throw error;
+    } else if (!isOwnMessage && !message.isMine) {
+      nextUnread = {
+        ...state.unreadByChatId,
+        [chatId]: (state.unreadByChatId[chatId] || 0) + 1,
+      };
+    }
+
+    if (state.chats.some((c) => c._id === chatId)) {
+      set({
+        messages: nextMessages,
+        unreadByChatId: nextUnread,
+        chats: bumpChatPreview(state.chats, chatId, message),
+      });
+    } else {
+      set({ messages: nextMessages, unreadByChatId: nextUnread });
+      get().loadAllChats().catch(() => {});
     }
   },
 
-  initSocketListeners: () => {
-    socketService.onNewMessage((data) => {
-      const { chatId, message } = data;
-      const currentChat = get().currentChat;
+  setTyping: (chatId: string, userId: string, isTyping: boolean) => {
+    const currentUserId = getCurrentUserId();
+    if (userId === currentUserId) return;
 
-      if (currentChat?._id === chatId) {
-        const messages = get().messages;
-        const exists = messages.some(m => m._id === message._id);
-        if (!exists) {
-          // Ensure message direction is set correctly
-          const processedMessage = {
-            ...message,
-            isMine: message.senderRole === 'landlord' || message.senderRole === 'admin'
-          };
-          set({ messages: [...messages, processedMessage] });
-        }
-      }
-      
-      // Update last message in chats list
-      const chats = get().chats;
-      const updatedChats = chats.map(chat => {
-        if (chat._id === chatId) {
-          return {
-            ...chat,
-            lastMessage: message,
-            updatedAt: message.createdAt
-          };
-        }
-        return chat;
-      });
-      set({ chats: updatedChats });
+    set({
+      typingByChatId: {
+        ...get().typingByChatId,
+        [chatId]: isTyping ? userId : null,
+      },
+    });
+  },
+
+  applyMessagesRead: (chatId: string, messageIds: string[]) => {
+    if (get().activeChatId !== chatId) return;
+    const idSet = new Set(messageIds);
+    set({
+      messages: get().messages.map((m) =>
+        idSet.has(m._id) ? { ...m, read: true } : m
+      ),
+    });
+  },
+
+  clearUnread: (chatId: string) => {
+    set({
+      unreadByChatId: { ...get().unreadByChatId, [chatId]: 0 },
+    });
+  },
+
+  clearActiveChat: () => {
+    const { activeChatId } = get();
+    if (activeChatId) {
+      socketService.leaveChat(activeChatId);
+    }
+    set({
+      currentChat: null,
+      activeChatId: null,
+      messages: [],
     });
   },
 
   clearCurrentChat: () => {
-    const currentChat = get().currentChat;
-    if (currentChat) {
-      socketService.leaveChat(currentChat._id);
-    }
-    set({ currentChat: null, messages: [] });
+    get().clearActiveChat();
   },
 
   setMessages: (messages: Message[]) => {
     set({ messages });
   },
 }));
-

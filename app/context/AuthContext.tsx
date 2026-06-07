@@ -12,8 +12,16 @@ import React, {
 } from "react";
 import authService from '../services/auth/auth.service';
 import { socketService } from '../lib/socket';
+import { bootstrapRealtime, resetRealtimeListeners } from '../lib/realtimeListeners';
 import { toSessionUser } from '../lib/authUser';
 import { setSessionWithUser, clearSession, getToken, getUserJson, isAccessTokenExpired } from '../lib/authSession';
+import { registerAuthLogoutHandler } from '../lib/authenticatedFetch';
+import { wasIdleLongEnough, clearIdleMark } from '../lib/idleSession';
+import { isBankAdminRole, isInsuranceAdminRole } from '../lib/portals';
+
+function shouldBootstrapRealtime(role: string | undefined): boolean {
+  return !isBankAdminRole(role) && !isInsuranceAdminRole(role);
+}
 
 interface User {
   id: string;
@@ -40,19 +48,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const login = useCallback((data: { token: string; user: User }) => {
-    setSessionWithUser(data.token, data.user);
+    const trimmedToken = data.token.trim();
+    setSessionWithUser(trimmedToken, data.user);
     setUser(data.user);
-    setToken(data.token);
+    setToken(trimmedToken);
     setLoading(false);
+    clearIdleMark();
+    if (shouldBootstrapRealtime(data.user.role)) {
+      bootstrapRealtime(trimmedToken);
+    }
   }, []);
 
   const logout = useCallback(() => {
     clearSession();
+    clearIdleMark();
     setUser(null);
     setToken(null);
     socketService.disconnect();
+    resetRealtimeListeners();
     setLoading(false);
   }, []);
+
+  useEffect(() => {
+    return registerAuthLogoutHandler(logout);
+  }, [logout]);
 
   useEffect(() => {
     const init = async () => {
@@ -66,23 +85,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         if (storedToken && storedUser) {
+          if (wasIdleLongEnough()) {
+            clearSession();
+            clearIdleMark();
+            setToken(null);
+            setUser(null);
+            if (!window.location.pathname.startsWith('/auth')) {
+              window.location.assign('/auth/login');
+            }
+            return;
+          }
+
           if (isAccessTokenExpired(storedToken)) {
             clearSession();
             setToken(null);
             setUser(null);
             return;
           }
-          setToken(storedToken);
-          try {
-            setUser(JSON.parse(storedUser));
-          } catch {
-            setUser(null);
-            setToken(null);
+
+          const me = await authService.getMe(storedToken);
+          if (!me.success || !me.data) {
             clearSession();
+            clearIdleMark();
+            setToken(null);
+            setUser(null);
+            if (!window.location.pathname.startsWith('/auth')) {
+              window.location.assign('/auth/login');
+            }
+            return;
+          }
+
+          const userData: User = toSessionUser(me.data as Record<string, unknown>);
+          setSessionWithUser(storedToken, userData);
+          setToken(storedToken);
+          setUser(userData);
+          clearIdleMark();
+          if (shouldBootstrapRealtime(userData.role)) {
+            bootstrapRealtime(storedToken);
           }
         } else {
           const urlParams = new URLSearchParams(window.location.search);
-          const tokenFromUrl = urlParams.get('token');
+          const tokenFromUrl = urlParams.get('token')?.trim();
           if (tokenFromUrl) {
             try {
               const me = await authService.getMe(tokenFromUrl);

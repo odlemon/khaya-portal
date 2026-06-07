@@ -4,6 +4,7 @@ import { Inter } from 'next/font/google'
 import './globals.css'
 import { Toaster } from 'react-hot-toast'
 import { AuthProvider } from './context/AuthContext'
+import SessionIdleGuard from './components/SessionIdleGuard'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -48,6 +49,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.className + ' bg-gray-100'}>
         <AuthProvider>
+          <SessionIdleGuard />
           <Toaster position="top-center" toastOptions={{
             style: { fontFamily: 'inherit' },
           }} />

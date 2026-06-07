@@ -48,7 +48,37 @@ export interface Message {
   taggedUser?: string;
   isMine: boolean;
   isPrivate: boolean;
+  read?: boolean;
   createdAt: string;
+}
+
+export interface AllChatsResponse {
+  success: boolean;
+  message: string;
+  data: {
+    chats: Chat[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+    };
+  };
+}
+
+export interface ChatResponse {
+  success: boolean;
+  message: string;
+  data: {
+    chat: Chat;
+    messages: Message[];
+  };
+}
+
+export interface MessageResponse {
+  success: boolean;
+  message: string;
+  data: Message;
 }
 
 
