@@ -72,7 +72,13 @@ export function resolveAssetUrl(url: string | null | undefined): string {
   return trimmed;
 }
 
-/** Socket.io: same-origin on HTTPS (proxied via rewrites when BACKEND_URL is set). */
+/** Default Socket.IO path on the server (backend root — not under /api). */
+export const SOCKET_IO_PATH = '/socket.io';
+
+/**
+ * Socket.io origin URL (no path). NEXT_PUBLIC_SOCKET_URL = origin only, e.g.
+ * https://khayamanage.co.zw — not .../socket.io and not .../api/backend.
+ */
 export function getSocketURL(): string | undefined {
   const envUrl = process.env.NEXT_PUBLIC_SOCKET_URL?.trim();
   if (envUrl) {
@@ -86,16 +92,16 @@ export function getSocketURL(): string | undefined {
     }
   }
 
-  // Local HTTP dev: connect directly to production backend.
+  // Local HTTP dev: connect directly to backend origin.
   if (typeof window !== 'undefined' && window.location.protocol !== 'https:') {
     return DEFAULT_BACKEND_ORIGIN;
   }
 
-  // HTTPS deployed portal: same-origin via /api/backend/socket.io (see getSocketOptions).
+  // HTTPS production: same portal origin; nginx proxies /socket.io/ → backend.
   return undefined;
 }
 
-/** Socket.io client options — on HTTPS use /api/backend/socket.io (same proxy as REST). */
+/** Socket.io client options — path is always /socket.io at server root. */
 export function getSocketOptions(): {
   url: string | undefined;
   path: string;
@@ -103,31 +109,10 @@ export function getSocketOptions(): {
   upgrade: boolean;
 } {
   const url = getSocketURL();
-  const isHttpsPage =
-    typeof window !== 'undefined' && window.location.protocol === 'https:';
-  const useDirectUrl = Boolean(url);
-
-  if (useDirectUrl) {
-    return {
-      url,
-      path: '/socket.io',
-      transports: ['websocket', 'polling'],
-      upgrade: true,
-    };
-  }
-
-  if (isHttpsPage) {
-    return {
-      url: undefined,
-      path: `${API_PROXY_PATH}/socket.io`,
-      transports: ['polling'],
-      upgrade: false,
-    };
-  }
 
   return {
     url,
-    path: '/socket.io',
+    path: SOCKET_IO_PATH,
     transports: ['websocket', 'polling'],
     upgrade: true,
   };
@@ -136,9 +121,8 @@ export function getSocketOptions(): {
 /** Human-readable target for logs (DevTools). */
 export function getSocketTargetLabel(): string {
   const { url, path } = getSocketOptions();
-  if (url) return `${url}${path}`;
-  if (typeof window !== 'undefined') {
-    return `${window.location.origin}${path}`;
-  }
-  return DEFAULT_BACKEND_ORIGIN + '/socket.io';
+  const origin =
+    url ||
+    (typeof window !== 'undefined' ? window.location.origin : DEFAULT_BACKEND_ORIGIN);
+  return `${origin}${path}`;
 }
