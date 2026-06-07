@@ -91,15 +91,14 @@ export function getSocketURL(): string | undefined {
     return DEFAULT_BACKEND_ORIGIN;
   }
 
-  // HTTPS deployed portal (e.g. khayamanage.co.zw): same-origin /socket.io
-  // proxied by next.config → BACKEND_URL. WebSocket upgrade often fails on
-  // Next/nginx; use getSocketOptions() polling fallback.
+  // HTTPS deployed portal: same-origin via /api/backend/socket.io (see getSocketOptions).
   return undefined;
 }
 
-/** Socket.io client options — polling-only on HTTPS avoids broken WSS upgrade. */
+/** Socket.io client options — on HTTPS use /api/backend/socket.io (same proxy as REST). */
 export function getSocketOptions(): {
   url: string | undefined;
+  path: string;
   transports: ('websocket' | 'polling')[];
   upgrade: boolean;
 } {
@@ -111,6 +110,7 @@ export function getSocketOptions(): {
   if (useDirectUrl) {
     return {
       url,
+      path: '/socket.io',
       transports: ['websocket', 'polling'],
       upgrade: true,
     };
@@ -119,6 +119,7 @@ export function getSocketOptions(): {
   if (isHttpsPage) {
     return {
       url: undefined,
+      path: `${API_PROXY_PATH}/socket.io`,
       transports: ['polling'],
       upgrade: false,
     };
@@ -126,6 +127,7 @@ export function getSocketOptions(): {
 
   return {
     url,
+    path: '/socket.io',
     transports: ['websocket', 'polling'],
     upgrade: true,
   };
@@ -133,10 +135,10 @@ export function getSocketOptions(): {
 
 /** Human-readable target for logs (DevTools). */
 export function getSocketTargetLabel(): string {
-  const { url } = getSocketOptions();
-  if (url) return url;
+  const { url, path } = getSocketOptions();
+  if (url) return `${url}${path}`;
   if (typeof window !== 'undefined') {
-    return `${window.location.origin}/socket.io`;
+    return `${window.location.origin}${path}`;
   }
   return DEFAULT_BACKEND_ORIGIN + '/socket.io';
 }

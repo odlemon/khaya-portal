@@ -29,10 +29,11 @@ class SocketService {
     }
 
     this.lastToken = token;
-    const { url: socketUrl, transports, upgrade } = getSocketOptions();
+    const { url: socketUrl, path, transports, upgrade } = getSocketOptions();
 
-    if (process.env.NODE_ENV === 'development' || typeof window !== 'undefined') {
+    if (typeof window !== 'undefined') {
       console.log('[portal] socket connecting to', getSocketTargetLabel(), {
+        path,
         transports,
         upgrade,
       });
@@ -40,6 +41,7 @@ class SocketService {
 
     this.socket = io(socketUrl, {
       auth: { token },
+      path,
       transports,
       upgrade,
       reconnection: true,
@@ -53,9 +55,7 @@ class SocketService {
 
     this.socket.on('connect', () => {
       this.connected = true;
-      if (process.env.NODE_ENV === 'development') {
-        console.log('[portal] socket connected');
-      }
+      console.log('[portal] socket connected');
       this.connectCallbacks.forEach((cb) => cb());
     });
 
