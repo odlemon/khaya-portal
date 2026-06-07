@@ -79,10 +79,6 @@ export function getSocketURL(): string | undefined {
     return trimTrailingSlash(envUrl);
   }
 
-  if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
-    return undefined;
-  }
-
   if (typeof window === 'undefined') {
     const backend = process.env.BACKEND_URL?.trim();
     if (backend) {
@@ -90,5 +86,57 @@ export function getSocketURL(): string | undefined {
     }
   }
 
-  return DEFAULT_BACKEND_ORIGIN;
+  // Local HTTP dev: connect directly to production backend.
+  if (typeof window !== 'undefined' && window.location.protocol !== 'https:') {
+    return DEFAULT_BACKEND_ORIGIN;
+  }
+
+  // HTTPS deployed portal (e.g. khayamanage.co.zw): same-origin /socket.io
+  // proxied by next.config → BACKEND_URL. WebSocket upgrade often fails on
+  // Next/nginx; use getSocketOptions() polling fallback.
+  return undefined;
+}
+
+/** Socket.io client options — polling-only on HTTPS avoids broken WSS upgrade. */
+export function getSocketOptions(): {
+  url: string | undefined;
+  transports: ('websocket' | 'polling')[];
+  upgrade: boolean;
+} {
+  const url = getSocketURL();
+  const isHttpsPage =
+    typeof window !== 'undefined' && window.location.protocol === 'https:';
+  const useDirectUrl = Boolean(url);
+
+  if (useDirectUrl) {
+    return {
+      url,
+      transports: ['websocket', 'polling'],
+      upgrade: true,
+    };
+  }
+
+  if (isHttpsPage) {
+    return {
+      url: undefined,
+      transports: ['polling'],
+      upgrade: false,
+    };
+  }
+
+  return {
+    url,
+    transports: ['websocket', 'polling'],
+    upgrade: true,
+  };
+}
+
+/** Human-readable target for logs (DevTools). */
+export function getSocketTargetLabel(): string {
+  const { url } = getSocketOptions();
+  if (url) return url;
+  if (typeof window !== 'undefined') {
+    return `${window.location.origin}/socket.io`;
+  }
+  return DEFAULT_BACKEND_ORIGIN + '/socket.io';
 }

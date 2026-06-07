@@ -1,5 +1,5 @@
 import { io, Socket } from 'socket.io-client';
-import { getSocketURL } from '../config/api.config';
+import { getSocketOptions, getSocketTargetLabel } from '../config/api.config';
 
 type EventHandler = (...args: unknown[]) => void;
 
@@ -29,11 +29,19 @@ class SocketService {
     }
 
     this.lastToken = token;
-    const socketUrl = getSocketURL();
+    const { url: socketUrl, transports, upgrade } = getSocketOptions();
+
+    if (process.env.NODE_ENV === 'development' || typeof window !== 'undefined') {
+      console.log('[portal] socket connecting to', getSocketTargetLabel(), {
+        transports,
+        upgrade,
+      });
+    }
 
     this.socket = io(socketUrl, {
       auth: { token },
-      transports: ['websocket', 'polling'],
+      transports,
+      upgrade,
       reconnection: true,
       reconnectionAttempts: 10,
       reconnectionDelay: 1000,

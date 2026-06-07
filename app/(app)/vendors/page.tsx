@@ -274,6 +274,10 @@ export default function VendorsPage() {
     });
   };
 
+  const hasActiveFilters = Object.keys(filters).some(
+    (key) => filters[key as keyof ServiceProviderFilters]
+  );
+
   if (loading) {
     return (
       <div className="flex-1 flex flex-col bg-gray-50 min-h-screen">
@@ -328,10 +332,10 @@ export default function VendorsPage() {
                   </svg>
                 </div>
                 <h3 className="text-lg sm:text-xl font-semibold text-gray-900 mb-2">
-                  {searchTerm || Object.keys(filters).some(key => filters[key as keyof ServiceProviderFilters]) ? 'No providers found' : 'No providers yet'}
+                  {hasActiveFilters ? 'No providers found' : 'No providers yet'}
                 </h3>
                 <p className="text-gray-500 text-base sm:text-lg">
-                  {searchTerm || Object.keys(filters).some(key => filters[key as keyof ServiceProviderFilters]) ? 'Try adjusting your filters' : 'Service providers will appear here once added'}
+                  {hasActiveFilters ? 'Try adjusting your filters' : 'Service providers will appear here once added'}
                 </p>
               </div>
             </div>
