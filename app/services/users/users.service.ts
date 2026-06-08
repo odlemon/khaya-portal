@@ -56,6 +56,32 @@ export type TerminateAccountResult =
   | { ok: true; status: 200 }
   | { ok: false; status: number; code?: string; message?: string };
 
+export interface AdminUsersListParams {
+  page?: number;
+  limit?: number;
+  role?: 'tenant' | 'landlord' | 'admin' | '';
+  search?: string;
+  isActive?: boolean;
+}
+
+export interface HardDeleteUserSummary {
+  id: string;
+  email: string;
+  role: string;
+  firstName: string;
+  lastName: string;
+}
+
+export interface HardDeleteResult {
+  user: HardDeleteUserSummary;
+  deletedCounts?: Record<string, number>;
+}
+
+/** Result of hard-delete admin action. */
+export type HardDeleteAccountResult =
+  | { ok: true; status: 200; message: string; data: HardDeleteResult }
+  | { ok: false; status: number; message?: string };
+
 export function useUsersService() {
   const fetchWithAuth = useFetchWithAuth();
 
@@ -137,6 +163,59 @@ export function useUsersService() {
     [fetchWithAuth]
   );
 
+  const listAdminUsers = useCallback(
+    async (params: AdminUsersListParams = {}): Promise<UsersResponse | null> => {
+      const { page = 1, limit = 20, role, search, isActive } = params;
+      try {
+        const qs = new URLSearchParams({
+          page: String(page),
+          limit: String(limit),
+        });
+        if (role) qs.set('role', role);
+        if (search?.trim()) qs.set('search', search.trim());
+        if (isActive !== undefined) qs.set('isActive', String(isActive));
+
+        const res = await fetchWithAuth(`${API_CONFIG.baseUrl}/admin/users?${qs}`, {
+          headers: { Accept: 'application/json' },
+        });
+        if (!res.ok) throw new Error('Failed to fetch users');
+        return await res.json();
+      } catch (e) {
+        if (e instanceof Error && e.message.includes('Authentication is still loading')) {
+          return null;
+        }
+        console.error('Error fetching admin users:', e);
+        return null;
+      }
+    },
+    [fetchWithAuth]
+  );
+
+  const hardDeleteUser = useCallback(
+    async (userId: string): Promise<HardDeleteAccountResult> => {
+      const res = await fetchWithAuth(`${API_CONFIG.baseUrl}/admin/users/${userId}`, {
+        method: 'DELETE',
+        headers: { Accept: 'application/json' },
+      });
+
+      let message = '';
+      let data: HardDeleteResult | undefined;
+      try {
+        const j = await res.json();
+        message = j.message || j.error || '';
+        data = j.data;
+      } catch {
+        // ignore
+      }
+
+      if (res.ok) {
+        return { ok: true, status: 200, message, data: data as HardDeleteResult };
+      }
+      return { ok: false, status: res.status, message };
+    },
+    [fetchWithAuth]
+  );
+
   const reinstateUser = useCallback(
     async (userId: string, reason: string): Promise<TerminateAccountResult> => {
       const res = await fetchWithAuth(`${API_CONFIG.baseUrl}/admin/users/${userId}/reinstate`, {
@@ -168,9 +247,20 @@ export function useUsersService() {
       getTenants,
       getLandlords,
       getTerminatedUsers,
+      listAdminUsers,
+      hardDeleteUser,
       terminateUser,
       reinstateUser,
     }),
-    [getUsers, getTenants, getLandlords, getTerminatedUsers, terminateUser, reinstateUser]
+    [
+      getUsers,
+      getTenants,
+      getLandlords,
+      getTerminatedUsers,
+      listAdminUsers,
+      hardDeleteUser,
+      terminateUser,
+      reinstateUser,
+    ]
   );
 }

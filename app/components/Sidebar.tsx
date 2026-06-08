@@ -168,6 +168,12 @@ const sidebarIcons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728L5.636 5.636m12.728 12.728L18.364 5.636M5.636 18.364l12.728-12.728" />
     </svg>
   ),
+  settings: (
+    <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+    </svg>
+  ),
 };
 
 // Helper to map menu item name to sidebarIcons key
@@ -207,6 +213,7 @@ const getSidebarIcon = (name: string) => {
     case 'Vendors': return sidebarIcons.vendors;
     case 'Maintenance': return sidebarIcons.maintenance;
     case 'Terminated accounts': return sidebarIcons.terminated;
+    case 'Settings': return sidebarIcons.settings;
     default: return null;
   }
 };
@@ -231,7 +238,9 @@ export default function Sidebar() {
       const criticalPaths = [
         '/dashboard',
         '/billing',
-        '/settings/account'
+        '/settings',
+        '/settings/account',
+        '/settings/users',
       ];
       
       criticalPaths.forEach(path => {
@@ -643,6 +652,46 @@ export default function Sidebar() {
                 </button>
               </div>
             </div>
+
+            {isKhayalamiAdminRole(user?.role) && (
+              <div>
+                <div className="px-3 py-2 mb-2">
+                  <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Settings</h3>
+                </div>
+                <div className="space-y-1">
+                  <button
+                    type="button"
+                    onClick={() => handleNavigation('/settings')}
+                    onMouseEnter={() => handleMouseEnter('/settings')}
+                    disabled={navigating === '/settings'}
+                    className={`w-full flex items-center px-3 py-2.5 text-sm rounded-xl transition-all duration-200 ${
+                      pathname === '/settings' || pathname?.startsWith('/settings/')
+                        ? 'bg-blue-50 text-blue-600 font-medium'
+                        : navigating === '/settings'
+                        ? 'bg-gray-50 text-gray-600'
+                        : 'text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    <div
+                      className={`w-5 h-5 mr-3 ${
+                        pathname === '/settings' || pathname?.startsWith('/settings/')
+                          ? 'text-blue-600'
+                          : 'text-gray-500'
+                      }`}
+                    >
+                      {navigating === '/settings' ? (
+                        <svg className="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                      ) : (
+                        getSidebarIcon('Settings')
+                      )}
+                    </div>
+                    Settings
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </nav>
         {/* User info at the bottom */}
