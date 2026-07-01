@@ -5,10 +5,10 @@
  */
 
 /** Direct HTTP API (includes `/api` suffix). Production backend default. */
-export const DEFAULT_PRODUCTION_API_URL = 'http://31.220.82.129:4002/api';
+export const DEFAULT_PRODUCTION_API_URL = 'http://207.180.234.151:4002/api';
 
 /** Origin only — rewrite target in next.config (no trailing slash). */
-export const DEFAULT_BACKEND_ORIGIN = 'http://31.220.82.129:4002';
+export const DEFAULT_BACKEND_ORIGIN = 'http://207.180.234.151:4002';
 
 /** Public same-origin proxy prefix (must match next.config rewrites). */
 export const API_PROXY_PATH = '/api/backend';
