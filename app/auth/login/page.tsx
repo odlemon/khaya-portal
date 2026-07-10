@@ -3,16 +3,18 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { Eye, EyeOff } from 'lucide-react';
 import authService from '../../services/auth/auth.service';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import { getDefaultPathForRole } from '../../lib/portals';
-import { toSessionUser } from '../../lib/authUser';
+import { toSessionUser, extractRbacFromAuthResponse } from '../../lib/authUser';
 import { ACCOUNT_ADMIN_TERMINATED } from '../../lib/authErrors';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -41,8 +43,17 @@ export default function Login() {
       const t = res.data?.token || res.token;
       const u = res.data?.user || res.user;
       if (res.success && t && u) {
-        const sessionUser = toSessionUser(u);
-        authLogin({ token: t, user: sessionUser });
+        const sessionUser = toSessionUser(u as Record<string, unknown>);
+        const rbac = extractRbacFromAuthResponse(res as Record<string, unknown>, sessionUser);
+        authLogin({
+          token: t,
+          user: sessionUser,
+          permissions: rbac.permissions,
+          portal: rbac.portal,
+          isSuperAdmin: rbac.isSuperAdmin,
+          mustChangePassword: rbac.mustChangePassword,
+          staffRole: rbac.staffRole,
+        });
       } else {
         const msg =
           res.code === ACCOUNT_ADMIN_TERMINATED
@@ -106,17 +117,29 @@ export default function Login() {
                 <label htmlFor="password" className="block text-sm font-medium text-gray-700">
                   Password
                 </label>
-                <input
-                  id="password"
-                  name="password"
-                  type="password"
-                  autoComplete="current-password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-3.5 border border-gray-200 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white text-gray-900 text-sm"
-                  placeholder="Enter your password"
-                />
+                <div className="relative">
+                  <input
+                    id="password"
+                    name="password"
+                    type={showPassword ? 'text' : 'password'}
+                    autoComplete="current-password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full px-4 py-3.5 pr-12 border border-gray-200 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white text-gray-900 text-sm"
+                    placeholder="Enter your password"
+                  />
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    onClick={() => setShowPassword((v) => !v)}
+                    className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-900"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    title={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
 
               <div className="pt-2">

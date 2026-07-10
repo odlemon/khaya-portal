@@ -1,104 +1,48 @@
 // @ts-nocheck
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useAuth } from '../../context/AuthContext';
-import permissionService, { Permission } from './permission.service';
+import { canAccess, canAccessAll, canAccessAny } from '../../lib/rbac';
 import SkeletonLoader from '../../components/SkeletonLoader';
-import {
-  isBankAdminRole,
-  isInsuranceAdminRole,
-  getRoleFromJwtToken,
-} from '../../lib/portals';
+
+/** @deprecated Legacy shape — use string permission keys from AuthContext instead. */
+export interface Permission {
+  name: string;
+  value: boolean;
+}
 
 export function usePermissions() {
-  const { token, user } = useAuth();
-  const [permissions, setPermissions] = useState<Permission[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [ready, setReady] = useState(false);
-
-  useEffect(() => {
-    if (!token) {
-      setPermissions([]);
-      setLoading(false);
-      setReady(true);
-      return;
-    }
-
-    // Token present but user profile not in context yet — avoid wrong Khayalami permission set for partner JWTs.
-    if (!user) {
-      const jwtRole = getRoleFromJwtToken(token);
-      if (isInsuranceAdminRole(jwtRole) || isBankAdminRole(jwtRole)) {
-        setPermissions([]);
-        setLoading(false);
-        setReady(true);
-        return;
-      }
-      const loadFromTokenOnly = async () => {
-        try {
-          setLoading(true);
-          setReady(false);
-          const userPermissions = await permissionService.getUserPermissions(token);
-          setPermissions(userPermissions);
-        } catch (error) {
-          console.error('Failed to load permissions:', error);
-          setPermissions([]);
-        } finally {
-          setLoading(false);
-          setReady(true);
-        }
-      };
-      loadFromTokenOnly();
-      return;
-    }
-
-    if (isInsuranceAdminRole(user?.role) || isBankAdminRole(user?.role)) {
-      setPermissions([]);
-      setLoading(false);
-      setReady(true);
-      return;
-    }
-
-    const loadPermissions = async () => {
-      try {
-        setLoading(true);
-        setReady(false);
-        const userPermissions = await permissionService.getUserPermissions(token);
-        setPermissions(userPermissions);
-      } catch (error) {
-        console.error('Failed to load permissions:', error);
-        setPermissions([]);
-      } finally {
-        setLoading(false);
-        setReady(true);
-      }
-    };
-
-    loadPermissions();
-  }, [token, user?.id, user?.role]);
+  const { permissions, isSuperAdmin, loading } = useAuth();
 
   const hasPermission = (permissionName: string): boolean => {
-    const permission = permissions.find(p => p.name === permissionName);
-    return permission?.value === true;
+    return canAccess(permissions, permissionName, isSuperAdmin);
   };
 
   const hasAnyPermission = (permissionNames: string[]): boolean => {
-    return permissionNames.some(name => hasPermission(name));
+    return canAccessAny(permissions, permissionNames, isSuperAdmin);
   };
 
   const hasAllPermissions = (permissionNames: string[]): boolean => {
-    return permissionNames.every(name => hasPermission(name));
+    return canAccessAll(permissions, permissionNames, isSuperAdmin);
   };
 
+  /** Legacy compat — maps string[] to Permission[] for any old consumers */
+  const permissionsLegacy: Permission[] = permissions.map((name) => ({
+    name,
+    value: true,
+  }));
+
   return {
-    permissions,
+    permissions: permissionsLegacy,
+    permissionKeys: permissions,
+    isSuperAdmin,
     loading,
-    ready,
+    ready: !loading,
     hasPermission,
     hasAnyPermission,
     hasAllPermissions,
   };
 }
 
-// Higher-order component for conditional rendering
 export function withPermission(
   WrappedComponent: React.ComponentType<any>,
   requiredPermission: string,
@@ -119,14 +63,13 @@ export function withPermission(
   };
 }
 
-// Permission-based conditional rendering component
-export function PermissionGate({ 
-  permission, 
-  permissions, 
-  requireAll = false, 
-  children, 
+export function PermissionGate({
+  permission,
+  permissions: permissionList,
+  requireAll = false,
+  children,
   fallback = null,
-  skeletonType = 'card'
+  skeletonType = 'card',
 }: {
   permission?: string;
   permissions?: string[];
@@ -145,9 +88,11 @@ export function PermissionGate({
 
   if (permission) {
     hasAccess = hasPermission(permission);
-  } else if (permissions) {
-    hasAccess = requireAll ? hasAllPermissions(permissions) : hasAnyPermission(permissions);
+  } else if (permissionList) {
+    hasAccess = requireAll ? hasAllPermissions(permissionList) : hasAnyPermission(permissionList);
+  } else {
+    hasAccess = true;
   }
 
   return hasAccess ? <>{children}</> : <>{fallback}</>;
-} 
+}

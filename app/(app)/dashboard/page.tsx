@@ -4,6 +4,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useDashboardService, type DashboardMetrics, type ReportResponse } from '../../services/dashboard/dashboard.service';
 import { useAuth } from '../../context/AuthContext';
+import PagePermissionWrapper from '../../components/PagePermissionWrapper';
 import { 
   BarChart, 
   Bar, 
@@ -230,6 +231,7 @@ export default function DashboardPage() {
   }
 
   return (
+    <PagePermissionWrapper permission="khayalami.dashboard.view">
     <div className="flex-1 flex flex-col bg-gray-50 min-h-screen">
       {/* iOS-style header */}
       <div className="px-6 py-4">
@@ -712,5 +714,6 @@ export default function DashboardPage() {
         </div>
       </div>
     </div>
+    </PagePermissionWrapper>
   );
 } 

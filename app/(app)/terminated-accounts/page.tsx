@@ -4,9 +4,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
-import { isKhayalamiAdminRole } from '../../lib/portals';
+import { usePermissions } from '../../services/permissions/usePermissions';
 import { useUsersService, type TerminatedUser } from '../../services/users/users.service';
 import AdminReinstateAccountModal from '../../components/AdminReinstateAccountModal';
+import PagePermissionWrapper from '../../components/PagePermissionWrapper';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,6 +38,7 @@ function formatDate(iso: string | undefined) {
 
 export default function TerminatedAccountsPage() {
   const { user, loading: authLoading } = useAuth();
+  const { hasPermission } = usePermissions();
   const { getTerminatedUsers, reinstateUser } = useUsersService();
   const [rows, setRows] = useState<TerminatedUser[]>([]);
   const [reinstateTarget, setReinstateTarget] = useState<TerminatedUser | null>(null);
@@ -48,7 +50,8 @@ export default function TerminatedAccountsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const isAdmin = isKhayalamiAdminRole(user?.role);
+  const canView = hasPermission('khayalami.users.view');
+  const canReinstate = hasPermission('khayalami.users.reinstate');
 
   const handleReinstateConfirm = async (reason: string) => {
     if (!reinstateTarget) return;
@@ -71,7 +74,7 @@ export default function TerminatedAccountsPage() {
   };
 
   const load = useCallback(async () => {
-    if (!isAdmin) return;
+    if (!canView) return;
     setLoading(true);
     setError(null);
     const role = roleFilter === 'all' ? undefined : roleFilter;
@@ -85,16 +88,16 @@ export default function TerminatedAccountsPage() {
       setRows([]);
     }
     setLoading(false);
-  }, [getTerminatedUsers, isAdmin, page, limit, roleFilter]);
+  }, [getTerminatedUsers, canView, page, limit, roleFilter]);
 
   useEffect(() => {
     if (authLoading) return;
-    if (!isAdmin) {
+    if (!canView) {
       setLoading(false);
       return;
     }
     load();
-  }, [authLoading, isAdmin, load]);
+  }, [authLoading, canView, load]);
 
   if (authLoading) {
     return (
@@ -105,15 +108,8 @@ export default function TerminatedAccountsPage() {
     );
   }
 
-  if (!isAdmin) {
-    return (
-      <div className="flex min-h-[50vh] flex-col items-center justify-center bg-gray-50 px-6">
-        <p className="text-center text-gray-700">You do not have access to this page.</p>
-      </div>
-    );
-  }
-
   return (
+    <PagePermissionWrapper permission="khayalami.users.view" skeletonType="table">
     <div className="min-h-screen bg-gray-50">
       <AdminReinstateAccountModal
         open={!!reinstateTarget}
@@ -215,6 +211,7 @@ export default function TerminatedAccountsPage() {
                         <span className="line-clamp-4 whitespace-pre-wrap">{row.adminTerminationReason || '—'}</span>
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-right">
+                        {canReinstate && (
                         <button
                           type="button"
                           onClick={() => setReinstateTarget(row)}
@@ -222,6 +219,7 @@ export default function TerminatedAccountsPage() {
                         >
                           Reinstate
                         </button>
+                        )}
                       </td>
                     </tr>
                   ))
@@ -258,5 +256,6 @@ export default function TerminatedAccountsPage() {
         )}
       </div>
     </div>
+    </PagePermissionWrapper>
   );
 }

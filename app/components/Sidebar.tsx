@@ -10,80 +10,83 @@ import type { UserDetailsData } from "../services/auth/types";
 import { useAuth } from '../context/AuthContext';
 import PartnerSidebar from './PartnerSidebar';
 import { isBankAdminRole, isInsuranceAdminRole, isKhayalamiAdminRole, isPartnerPortalPath } from '../lib/portals';
+import { canAccess } from '../lib/rbac';
 
 const menuItems = [
   {
     name: "Dashboard",
     path: "/dashboard",
+    permission: "khayalami.dashboard.view",
     icon: "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0h6",
   },
   // Property Management
   {
     name: "Tenants",
     path: "/tenants",
-    permission: "view_tenants",
+    permission: "khayalami.users.view",
     icon: "M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87M17 20a4 4 0 00-3-3.87M9 20a4 4 0 013-3.87M12 3v17m0 0a4 4 0 01-4-4V7a4 4 0 014-4zm0 0a4 4 0 014 4v9a4 4 0 01-4 4z",
   },
   {
     name: "Landlords",
     path: "/landlords",
-    permission: "view_landlords",
+    permission: "khayalami.users.view",
     icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4",
   },
   {
     name: "Properties",
     path: "/properties",
-    permission: "view_properties",
+    permission: "khayalami.properties.view",
     icon: "M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z",
   },
   {
     name: "Agreements",
     path: "/agreements",
-    permission: "view_agreements",
+    permission: "khayalami.agreements.view",
     icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z",
   },
   // Payments
   {
     name: "Payments",
     path: "/payments",
-    permission: "view_payments",
+    permission: "khayalami.payments.view",
     icon: "M12 8c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 10c-4.41 0-8-1.79-8-4V6c0-2.21 3.59-4 8-4s8 1.79 8 4v8c0 2.21-3.59 4-8 4z",
   },
   {
     name: "Earnings",
     path: "/earnings",
-    permission: "view_earnings",
+    permission: "khayalami.commissions.view",
     icon: "M12 8c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 10c-4.41 0-8-1.79-8-4V6c0-2.21 3.59-4 8-4s8 1.79 8 4v8c0 2.21-3.59 4-8 4z",
   },
   {
     name: "Document Verifications",
     path: "/incoming-requests",
-    permission: "view_verification_requests",
+    permission: "khayalami.documents.view",
     icon: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z",
   },
   {
     name: "Escrow",
     path: "/escrow",
-    permission: "view_escrow",
+    permission: "khayalami.escrow.view",
     icon: "M12 8c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 10c-4.41 0-8-1.79-8-4V6c0-2.21 3.59-4 8-4s8 1.79 8 4v8c0 2.21-3.59 4-8 4z",
   },
   // Communication
   {
     name: "Khayachats",
     path: "/messages",
+    permission: "khayalami.chat.view",
     icon: "M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z",
   },
   // Maintenance & Services
   {
     name: "Vendors",
     path: "/vendors",
-    permission: "view_vendors",
+    permission: "khayalami.service_providers.view",
     icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4",
   },
   {
     name: "Maintenance",
     path: "/maintenance-requests",
-    permission: "view_maintenance",
+    permission: "khayalami.maintenance.view",
     icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z",
   },
 ];
@@ -222,8 +225,40 @@ export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { hasPermission, loading: permissionsLoading, ready: permissionsReady } = usePermissions();
+  const { user, permissions, isSuperAdmin } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { user } = useAuth();
+
+  const navVisible = useCallback(
+    (path: string, permission?: string) => {
+      const key =
+        permission ??
+        menuItems.find((m) => m.path === path)?.permission ??
+        (path === '/terminated-accounts' ? 'khayalami.users.view' : undefined) ??
+        (path === '/services-requests' ? 'khayalami.services.view' : undefined);
+      if (!key) return true;
+      return canAccess(permissions, key, isSuperAdmin);
+    },
+    [permissions, isSuperAdmin]
+  );
+
+  const showHome = navVisible('/dashboard');
+  const propertyItems = menuItems
+    .slice(1, 5)
+    .filter((item) => navVisible(item.path, item.permission));
+  const showTerminated = navVisible('/terminated-accounts');
+  const showPropertySection = propertyItems.length > 0 || showTerminated;
+  const paymentItems = menuItems
+    .slice(5, 7)
+    .filter((item) => navVisible(item.path, item.permission));
+  const showPaymentsSection = paymentItems.length > 0;
+  const showEscrow = navVisible(menuItems[8].path, menuItems[8].permission);
+  const showChat = navVisible(menuItems[9].path, menuItems[9].permission);
+  const showVerifications = navVisible(menuItems[7].path, menuItems[7].permission);
+  const maintenanceItems = menuItems
+    .slice(10, 12)
+    .filter((item) => navVisible(item.path, item.permission));
+  const showServices = navVisible('/services-requests');
+  const showMaintenanceSection = maintenanceItems.length > 0 || showServices;
 
   // State for navigation loading
   const [navigating, setNavigating] = useState<string | null>(null);
@@ -352,6 +387,7 @@ export default function Sidebar() {
         <nav className="flex-1 px-4 py-4 overflow-y-auto">
           <div className="space-y-6">
             {/* Home section */}
+            {showHome && (
             <div>
               <div className="px-3 py-2 mb-2">
                 <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Home</h3>
@@ -375,14 +411,16 @@ export default function Sidebar() {
                 </button>
               </div>
             </div>
+            )}
 
             {/* Property Management section */}
+            {showPropertySection && (
             <div>
               <div className="px-3 py-2 mb-2">
                 <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Property Management</h3>
               </div>
               <div className="space-y-1">
-                {menuItems.slice(1, 5).map((item) => {
+                {propertyItems.map((item) => {
                   return (
                     <button
                       key={item.path}
@@ -412,7 +450,7 @@ export default function Sidebar() {
                     </button>
                   );
                 })}
-                {isKhayalamiAdminRole(user?.role) && (
+                {showTerminated && (
                   <button
                     type="button"
                     onClick={() => handleNavigation('/terminated-accounts')}
@@ -444,14 +482,16 @@ export default function Sidebar() {
                 )}
               </div>
             </div>
+            )}
 
             {/* Payments section */}
+            {showPaymentsSection && (
             <div>
               <div className="px-3 py-2 mb-2">
                 <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Payments</h3>
               </div>
               <div className="space-y-1">
-                {menuItems.slice(5, 7).map((item) => {
+                {paymentItems.map((item) => {
                   return (
                     <button
                       key={item.path}
@@ -483,8 +523,10 @@ export default function Sidebar() {
                 })}
               </div>
             </div>
+            )}
 
             {/* Escrow section */}
+            {showEscrow && (
             <div>
               <div className="px-3 py-2 mb-2">
                 <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Escrow</h3>
@@ -517,8 +559,10 @@ export default function Sidebar() {
                 </button>
               </div>
             </div>
+            )}
 
             {/* Communication section */}
+            {showChat && (
             <div>
               <div className="px-3 py-2 mb-2">
                 <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Communication</h3>
@@ -551,8 +595,10 @@ export default function Sidebar() {
                 </button>
               </div>
             </div>
+            )}
 
             {/* Verifications section */}
+            {showVerifications && (
             <div>
               <div className="px-3 py-2 mb-2">
                 <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Verifications</h3>
@@ -585,14 +631,16 @@ export default function Sidebar() {
                 </button>
               </div>
             </div>
+            )}
 
             {/* Maintenance & Services section */}
+            {showMaintenanceSection && (
             <div>
               <div className="px-3 py-2 mb-2">
                 <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Maintenance & Services</h3>
               </div>
               <div className="space-y-1">
-                {menuItems.slice(10, 12).map((item) => {
+                {maintenanceItems.map((item) => {
                   return (
                     <button
                       key={item.path}
@@ -623,6 +671,7 @@ export default function Sidebar() {
                   );
                 })}
                 {/* Service Requests link */}
+                {showServices && (
                 <button
                   onClick={() => handleNavigation('/services-requests')}
                   onMouseEnter={() => handleMouseEnter('/services-requests')}
@@ -650,8 +699,10 @@ export default function Sidebar() {
                   </div>
                   Service Requests
                 </button>
+                )}
               </div>
             </div>
+            )}
 
             {isKhayalamiAdminRole(user?.role) && (
               <div>

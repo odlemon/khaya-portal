@@ -2,6 +2,7 @@ import { getToken, clearSession } from '@/app/lib/authSession';
 import {
   ACCOUNT_ADMIN_TERMINATED,
 } from '@/app/lib/authErrors';
+import { isPermissionDeniedBody, PermissionDeniedError } from '@/app/lib/permissionErrors';
 
 type LogoutHandler = () => void;
 
@@ -80,6 +81,7 @@ export async function authenticatedFetch(
       if (body.code === ACCOUNT_ADMIN_TERMINATED) {
         runForcedLogout();
       }
+      // PERMISSION_DENIED — do not logout; caller handles UI
     }
   }
 
@@ -94,10 +96,15 @@ export async function authenticatedFetchJson<T>(
   const response = await authenticatedFetch(input, init, options);
 
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
+    const errorData = (await response.json().catch(() => ({}))) as Record<string, unknown>;
     const message =
-      (errorData as { message?: string }).message ||
-      `HTTP error! status: ${response.status}`;
+      (errorData.message as string) || `HTTP error! status: ${response.status}`;
+    if (response.status === 403 && isPermissionDeniedBody(errorData)) {
+      throw new PermissionDeniedError(
+        message,
+        Array.isArray(errorData.required) ? (errorData.required as string[]) : []
+      );
+    }
     throw new Error(message);
   }
 

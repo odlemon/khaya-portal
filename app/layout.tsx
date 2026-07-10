@@ -5,6 +5,7 @@ import './globals.css'
 import { Toaster } from 'react-hot-toast'
 import { AuthProvider } from './context/AuthContext'
 import SessionIdleGuard from './components/SessionIdleGuard'
+import MustChangePasswordModal from './components/MustChangePasswordModal'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -50,6 +51,7 @@ export default function RootLayout({
       <body className={inter.className + ' bg-gray-100'}>
         <AuthProvider>
           <SessionIdleGuard />
+          <MustChangePasswordModal />
           <Toaster position="top-center" toastOptions={{
             style: { fontFamily: 'inherit' },
           }} />

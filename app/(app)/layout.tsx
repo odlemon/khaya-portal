@@ -3,6 +3,7 @@
 import Sidebar from '../components/Sidebar';
 import Navbar from '../components/Navbar';
 import RolePortalGuard from '../components/RolePortalGuard';
+import RoutePermissionGuard from '../components/RoutePermissionGuard';
 import RealtimeProvider from '../components/RealtimeProvider';
 import { Suspense } from 'react';
 
@@ -21,7 +22,7 @@ export default function AppLayout({
             <Navbar />
             <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 p-6 rounded-lg">
               <Suspense fallback={<div>Loading...</div>}>
-                {children}
+                <RoutePermissionGuard>{children}</RoutePermissionGuard>
               </Suspense>
             </main>
           </div>

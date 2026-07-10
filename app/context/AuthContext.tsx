@@ -13,48 +13,81 @@ import React, {
 import authService from '../services/auth/auth.service';
 import { socketService } from '../lib/socket';
 import { bootstrapRealtime, resetRealtimeListeners } from '../lib/realtimeListeners';
-import { toSessionUser } from '../lib/authUser';
-import { setSessionWithUser, clearSession, getToken, getUserJson, isAccessTokenExpired } from '../lib/authSession';
+import { toSessionUser, extractRbacFromAuthResponse, mergeUserWithRbac } from '../lib/authUser';
+import {
+  setSessionWithUser,
+  clearSession,
+  getToken,
+  getUserJson,
+  getStoredRbac,
+  isAccessTokenExpired,
+} from '../lib/authSession';
 import { registerAuthLogoutHandler } from '../lib/authenticatedFetch';
 import { wasIdleLongEnough, clearIdleMark } from '../lib/idleSession';
 import { isBankAdminRole, isInsuranceAdminRole } from '../lib/portals';
+import type { LoginPayload, PortalType, RbacState, SessionUser, StaffRoleRef } from '../types/staffSession';
 
 function shouldBootstrapRealtime(role: string | undefined): boolean {
   return !isBankAdminRole(role) && !isInsuranceAdminRole(role);
 }
 
-interface User {
-  id: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-  firmName: string;
-  role: string;
-}
+const defaultRbac: RbacState = {
+  permissions: [],
+  portal: null,
+  isSuperAdmin: false,
+  mustChangePassword: false,
+  staffRole: null,
+};
 
 interface AuthContextType {
-  user: User | null;
+  user: SessionUser | null;
   token: string | null;
-  login: (data: { token: string; user: User }) => void;
+  permissions: string[];
+  portal: PortalType;
+  isSuperAdmin: boolean;
+  mustChangePassword: boolean;
+  staffRole: StaffRoleRef | null;
+  login: (data: LoginPayload) => void;
   logout: () => void;
+  clearMustChangePassword: () => void;
+  updateRbac: (rbac: Partial<RbacState>) => void;
   loading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+function applyLoginPayload(
+  token: string,
+  user: SessionUser,
+  rbac: RbacState
+): { user: SessionUser; rbac: RbacState } {
+  const mergedUser = mergeUserWithRbac(user, rbac);
+  setSessionWithUser(token, mergedUser, rbac);
+  return { user: mergedUser, rbac };
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<SessionUser | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  const [rbac, setRbac] = useState<RbacState>(defaultRbac);
   const [loading, setLoading] = useState(true);
 
-  const login = useCallback((data: { token: string; user: User }) => {
+  const login = useCallback((data: LoginPayload) => {
     const trimmedToken = data.token.trim();
-    setSessionWithUser(trimmedToken, data.user);
-    setUser(data.user);
+    const rbacState: RbacState = {
+      permissions: data.permissions ?? [],
+      portal: data.portal ?? null,
+      isSuperAdmin: data.isSuperAdmin ?? false,
+      mustChangePassword: data.mustChangePassword ?? false,
+      staffRole: data.staffRole ?? null,
+    };
+    const { user: mergedUser } = applyLoginPayload(trimmedToken, data.user, rbacState);
+    setUser(mergedUser);
     setToken(trimmedToken);
+    setRbac(rbacState);
     setLoading(false);
     clearIdleMark();
-    if (shouldBootstrapRealtime(data.user.role)) {
+    if (shouldBootstrapRealtime(mergedUser.role)) {
       bootstrapRealtime(trimmedToken);
     }
   }, []);
@@ -64,10 +97,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearIdleMark();
     setUser(null);
     setToken(null);
+    setRbac(defaultRbac);
     socketService.disconnect();
     resetRealtimeListeners();
     setLoading(false);
   }, []);
+
+  const clearMustChangePassword = useCallback(() => {
+    setRbac((prev) => {
+      const next = { ...prev, mustChangePassword: false };
+      if (user && token) {
+        const mergedUser = { ...user, mustChangePassword: false };
+        setUser(mergedUser);
+        setSessionWithUser(token, mergedUser, next);
+      }
+      return next;
+    });
+  }, [user, token]);
+
+  const updateRbac = useCallback(
+    (partial: Partial<RbacState>) => {
+      setRbac((prev) => {
+        const next = { ...prev, ...partial };
+        if (user && token) {
+          const mergedUser = mergeUserWithRbac(user, next);
+          setUser(mergedUser);
+          setSessionWithUser(token, mergedUser, next);
+        }
+        return next;
+      });
+    },
+    [user, token]
+  );
 
   useEffect(() => {
     return registerAuthLogoutHandler(logout);
@@ -77,19 +138,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const init = async () => {
       try {
         let storedToken = getToken();
-        let storedUser = getUserJson();
-        if ((storedToken && !storedUser) || (!storedToken && storedUser)) {
+        let storedUserJson = getUserJson();
+        if ((storedToken && !storedUserJson) || (!storedToken && storedUserJson)) {
           clearSession();
           storedToken = getToken();
-          storedUser = getUserJson();
+          storedUserJson = getUserJson();
         }
 
-        if (storedToken && storedUser) {
+        if (storedToken && storedUserJson) {
           if (wasIdleLongEnough()) {
             clearSession();
             clearIdleMark();
             setToken(null);
             setUser(null);
+            setRbac(defaultRbac);
             if (!window.location.pathname.startsWith('/auth')) {
               window.location.assign('/auth/login');
             }
@@ -100,6 +162,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             clearSession();
             setToken(null);
             setUser(null);
+            setRbac(defaultRbac);
             return;
           }
 
@@ -109,18 +172,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             clearIdleMark();
             setToken(null);
             setUser(null);
+            setRbac(defaultRbac);
             if (!window.location.pathname.startsWith('/auth')) {
               window.location.assign('/auth/login');
             }
             return;
           }
 
-          const userData: User = toSessionUser(me.data as Record<string, unknown>);
-          setSessionWithUser(storedToken, userData);
+          const userData = toSessionUser(me.data as Record<string, unknown>);
+          const rbacState = extractRbacFromAuthResponse(me as Record<string, unknown>, userData);
+          const { user: mergedUser, rbac: mergedRbac } = applyLoginPayload(
+            storedToken,
+            userData,
+            rbacState
+          );
           setToken(storedToken);
-          setUser(userData);
+          setUser(mergedUser);
+          setRbac(mergedRbac);
           clearIdleMark();
-          if (shouldBootstrapRealtime(userData.role)) {
+          if (shouldBootstrapRealtime(mergedUser.role)) {
             bootstrapRealtime(storedToken);
           }
         } else {
@@ -130,13 +200,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             try {
               const me = await authService.getMe(tokenFromUrl);
               if (me.success && me.data) {
-                const u = me.data;
-                const userData: User = toSessionUser(u as Record<string, unknown>);
-                login({ token: tokenFromUrl, user: userData });
+                const userData = toSessionUser(me.data as Record<string, unknown>);
+                const rbacState = extractRbacFromAuthResponse(me as Record<string, unknown>, userData);
+                login({
+                  token: tokenFromUrl,
+                  user: userData,
+                  ...rbacState,
+                });
                 return;
               }
             } catch (e) {
               console.error('Token from URL failed:', e);
+            }
+          } else {
+            const storedRbac = getStoredRbac();
+            if (storedRbac && storedUserJson) {
+              try {
+                const parsedUser = JSON.parse(storedUserJson) as SessionUser;
+                setUser(parsedUser);
+                setToken(storedToken);
+                setRbac(storedRbac);
+              } catch {
+                // ignore
+              }
             }
           }
         }
@@ -150,8 +236,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [login]);
 
   const value = useMemo(
-    () => ({ user, token, login, logout, loading }),
-    [user, token, login, logout, loading]
+    () => ({
+      user,
+      token,
+      permissions: rbac.permissions,
+      portal: rbac.portal,
+      isSuperAdmin: rbac.isSuperAdmin,
+      mustChangePassword: rbac.mustChangePassword,
+      staffRole: rbac.staffRole,
+      login,
+      logout,
+      clearMustChangePassword,
+      updateRbac,
+      loading,
+    }),
+    [user, token, rbac, login, logout, clearMustChangePassword, updateRbac, loading]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

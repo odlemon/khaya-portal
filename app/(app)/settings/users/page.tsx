@@ -2,14 +2,19 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Trash2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../../../context/AuthContext';
-import { isKhayalamiAdminRole } from '../../../lib/portals';
+import { usePermissions } from '../../../services/permissions/usePermissions';
 import { useUsersService, type User } from '../../../services/users/users.service';
 import AdminHardDeleteUserModal from '../../../components/AdminHardDeleteUserModal';
+import PagePermissionWrapper from '../../../components/PagePermissionWrapper';
+import SettingsSection from '../../../components/settings/SettingsSection';
+import IconActionButton from '../../../components/settings/IconActionButton';
+import { settingsInputClass, settingsSelectClass } from '../../../components/settings/SettingsModal';
 
 const ITEMS_PER_PAGE = 20;
+const CUSTOMER_ROLES = new Set(['tenant', 'landlord']);
 
 function formatDate(dateString: string) {
   return new Date(dateString).toLocaleDateString('en-US', {
@@ -21,8 +26,6 @@ function formatDate(dateString: string) {
 
 function roleBadgeClass(role: string) {
   switch (role) {
-    case 'admin':
-      return 'bg-purple-100 text-purple-700';
     case 'landlord':
       return 'bg-amber-100 text-amber-800';
     case 'tenant':
@@ -33,8 +36,8 @@ function roleBadgeClass(role: string) {
 }
 
 export default function SettingsUsersPage() {
-  const router = useRouter();
   const { user: authUser, loading: authLoading } = useAuth();
+  const { hasPermission } = usePermissions();
   const { listAdminUsers, hardDeleteUser } = useUsersService();
 
   const [users, setUsers] = useState<User[]>([]);
@@ -50,14 +53,8 @@ export default function SettingsUsersPage() {
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const isAdmin = isKhayalamiAdminRole(authUser?.role);
+  const canDelete = hasPermission('khayalami.users.delete');
   const currentUserId = authUser?.id ? String(authUser.id) : '';
-
-  useEffect(() => {
-    if (!authLoading && !isAdmin) {
-      router.replace('/dashboard');
-    }
-  }, [authLoading, isAdmin, router]);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 350);
@@ -66,7 +63,7 @@ export default function SettingsUsersPage() {
 
   const loadUsers = useCallback(
     async (page = 1) => {
-      if (authLoading || !isAdmin) return;
+      if (authLoading) return;
 
       setLoading(true);
       setError(null);
@@ -77,24 +74,28 @@ export default function SettingsUsersPage() {
         const response = await listAdminUsers({
           page,
           limit: ITEMS_PER_PAGE,
-          role: roleFilter || undefined,
+          role: (roleFilter as 'tenant' | 'landlord') || undefined,
           search: debouncedSearch || undefined,
           isActive,
         });
 
         if (response?.success) {
-          setUsers(response.data.users);
-          setPagination(response.data.pagination);
+          const customerUsers = response.data.users.filter((u) => CUSTOMER_ROLES.has(u.role));
+          setUsers(customerUsers);
+          setPagination({
+            ...response.data.pagination,
+            total: customerUsers.length,
+          });
         } else {
-          setError('Failed to load users');
+          setError('Failed to load customers');
         }
       } catch {
-        setError('Error loading users');
+        setError('Error loading customers');
       } finally {
         setLoading(false);
       }
     },
-    [authLoading, isAdmin, listAdminUsers, debouncedSearch, roleFilter, activeFilter]
+    [authLoading, listAdminUsers, debouncedSearch, roleFilter, activeFilter]
   );
 
   useEffect(() => {
@@ -102,9 +103,10 @@ export default function SettingsUsersPage() {
   }, [loadUsers]);
 
   const canDeleteUser = (user: User) => {
+    if (!canDelete) return false;
     if (deletingId) return false;
     if (String(user._id) === currentUserId) return false;
-    if (user.role === 'admin') return false;
+    if (!CUSTOMER_ROLES.has(user.role)) return false;
     return true;
   };
 
@@ -135,212 +137,207 @@ export default function SettingsUsersPage() {
     }
   };
 
-  if (authLoading || !isAdmin) {
+  if (authLoading) {
     return (
-      <div className="p-6">
+      <SettingsSection>
         <div className="space-y-3">
           {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="h-14 bg-gray-200 rounded-xl animate-pulse" />
+            <div key={i} className="h-14 animate-pulse rounded-xl bg-gray-200" />
           ))}
         </div>
-      </div>
+      </SettingsSection>
     );
   }
 
   return (
-    <div className="p-6">
-      <AdminHardDeleteUserModal
-        open={!!deleteTarget}
-        user={deleteTarget}
-        onClose={() => !deletingId && setDeleteTarget(null)}
-        onConfirm={handleHardDeleteConfirm}
-      />
+    <PagePermissionWrapper permission="khayalami.users.view" skeletonType="table">
+      <SettingsSection
+        title="Customers"
+        subtitle="Landlords and tenants on the platform"
+      >
+        <AdminHardDeleteUserModal
+          open={!!deleteTarget}
+          user={deleteTarget}
+          onClose={() => !deletingId && setDeleteTarget(null)}
+          onConfirm={handleHardDeleteConfirm}
+        />
 
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between mb-6">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900">User management</h2>
-          <p className="text-sm text-gray-500 mt-1">
-            {pagination.total} users · permanently delete removes all related data
+        <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <p className="text-sm text-gray-500">
+            {pagination.total} customers · permanently delete removes all related data
           </p>
-        </div>
 
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative w-full sm:w-64">
+          <div className="flex flex-col gap-3 sm:flex-row">
             <input
               type="text"
               placeholder="Search name or email"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              className={`w-full sm:w-64 ${settingsInputClass}`}
             />
+            <select
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value)}
+              className={settingsSelectClass}
+            >
+              <option value="">All customers</option>
+              <option value="tenant">Tenant</option>
+              <option value="landlord">Landlord</option>
+            </select>
+            <select
+              value={activeFilter}
+              onChange={(e) => setActiveFilter(e.target.value)}
+              className={settingsSelectClass}
+            >
+              <option value="">All statuses</option>
+              <option value="true">Active</option>
+              <option value="false">Inactive</option>
+            </select>
           </div>
-          <select
-            value={roleFilter}
-            onChange={(e) => setRoleFilter(e.target.value)}
-            className="px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-700"
-          >
-            <option value="">All roles</option>
-            <option value="tenant">Tenant</option>
-            <option value="landlord">Landlord</option>
-            <option value="admin">Admin</option>
-          </select>
-          <select
-            value={activeFilter}
-            onChange={(e) => setActiveFilter(e.target.value)}
-            className="px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-700"
-          >
-            <option value="">All statuses</option>
-            <option value="true">Active</option>
-            <option value="false">Inactive</option>
-          </select>
         </div>
-      </div>
 
-      {error && (
-        <div className="mb-4 bg-red-50 border border-red-200 rounded-xl p-4">
-          <p className="text-red-800 text-sm">{error}</p>
-        </div>
-      )}
+        {error && (
+          <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4">
+            <p className="text-sm text-red-800">{error}</p>
+          </div>
+        )}
 
-      {loading ? (
-        <div className="space-y-3">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="h-14 bg-gray-200 rounded-xl animate-pulse" />
-          ))}
-        </div>
-      ) : users.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 bg-white rounded-xl border border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900">No users found</h3>
-          <p className="text-sm text-gray-500 mt-1">Try adjusting your search or filters</p>
-        </div>
-      ) : (
-        <>
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-100">
-                <thead className="bg-gray-50/50">
-                  <tr>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                      Name
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                      Email
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                      Role
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                      Joined
-                    </th>
-                    <th className="px-6 py-4 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-100">
-                  {users.map((user) => {
-                    const deleteDisabled = !canDeleteUser(user);
-                    const isSelf = String(user._id) === currentUserId;
-                    const isAdminRow = user.role === 'admin';
+        {loading ? (
+          <div className="space-y-3">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="h-14 animate-pulse rounded-xl bg-gray-200" />
+            ))}
+          </div>
+        ) : users.length === 0 ? (
+          <div className="flex flex-col items-center justify-center rounded-xl border border-gray-200 bg-white py-16">
+            <h3 className="text-lg font-semibold text-gray-900">No customers found</h3>
+            <p className="mt-1 text-sm text-gray-500">Try adjusting your search or filters</p>
+          </div>
+        ) : (
+          <>
+            <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-100">
+                  <thead className="bg-gray-50/50">
+                    <tr>
+                      <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
+                        Name
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
+                        Email
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
+                        Role
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
+                        Status
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
+                        Joined
+                      </th>
+                      <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-gray-600">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 bg-white">
+                    {users.map((user) => {
+                      const deleteDisabled = !canDeleteUser(user);
+                      const isSelf = String(user._id) === currentUserId;
 
-                    return (
-                      <tr key={user._id} className="hover:bg-gray-50/50 transition-colors">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-semibold text-gray-900">
-                            {user.firstName} {user.lastName}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">{user.email}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span
-                            className={`inline-flex px-2.5 py-1 text-xs font-medium rounded-full capitalize ${roleBadgeClass(user.role)}`}
-                          >
-                            {user.role}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center gap-2">
+                      return (
+                        <tr key={user._id} className="transition-colors hover:bg-gray-50/50">
+                          <td className="whitespace-nowrap px-6 py-4">
+                            <div className="text-sm font-semibold text-gray-900">
+                              {user.firstName} {user.lastName}
+                            </div>
+                          </td>
+                          <td className="whitespace-nowrap px-6 py-4">
+                            <div className="text-sm text-gray-900">{user.email}</div>
+                          </td>
+                          <td className="whitespace-nowrap px-6 py-4">
                             <span
-                              className={`inline-flex px-2.5 py-1 text-xs font-medium rounded-full ${
-                                user.isActive
-                                  ? 'bg-green-100 text-green-700'
-                                  : 'bg-red-100 text-red-700'
-                              }`}
+                              className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium capitalize ${roleBadgeClass(user.role)}`}
                             >
-                              {user.isActive ? 'Active' : 'Inactive'}
+                              {user.role}
                             </span>
-                            {user.isVerified && (
-                              <span className="inline-flex px-2.5 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-700">
-                                Verified
+                          </td>
+                          <td className="whitespace-nowrap px-6 py-4">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
+                                  user.isActive
+                                    ? 'bg-green-100 text-green-700'
+                                    : 'bg-red-100 text-red-700'
+                                }`}
+                              >
+                                {user.isActive ? 'Active' : 'Inactive'}
                               </span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {formatDate(user.createdAt)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right">
-                          <button
-                            type="button"
-                            disabled={deleteDisabled}
-                            onClick={() => setDeleteTarget(user)}
-                            title={
-                              isSelf
-                                ? 'You cannot delete your own account'
-                                : isAdminRow
-                                ? 'Admin accounts cannot be hard-deleted'
-                                : 'Permanently delete user and all related data'
-                            }
-                            className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
-                          >
-                            {deletingId === user._id ? 'Deleting…' : 'Delete permanently'}
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {pagination.pages > 1 && (
-            <div className="flex items-center justify-between mt-6">
-              <div className="text-sm text-gray-500">
-                Page {pagination.page} of {pagination.pages} · {pagination.total} total
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => loadUsers(pagination.page - 1)}
-                  disabled={pagination.page <= 1 || loading}
-                  className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50"
-                >
-                  Previous
-                </button>
-                <button
-                  type="button"
-                  onClick={() => loadUsers(pagination.page + 1)}
-                  disabled={pagination.page >= pagination.pages || loading}
-                  className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50"
-                >
-                  Next
-                </button>
+                              {user.isVerified && (
+                                <span className="inline-flex rounded-full bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-700">
+                                  Verified
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
+                            {formatDate(user.createdAt)}
+                          </td>
+                          <td className="whitespace-nowrap px-6 py-4 text-right">
+                            <IconActionButton
+                              onClick={() => setDeleteTarget(user)}
+                              disabled={deleteDisabled}
+                              variant="danger"
+                              title={
+                                isSelf
+                                  ? 'You cannot delete your own account'
+                                  : 'Permanently delete customer and all related data'
+                              }
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </IconActionButton>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </div>
-          )}
-        </>
-      )}
 
-      <p className="mt-6 text-xs text-gray-500">
-        To soft-disable an account while keeping audit history, use Terminate on the Tenants or
-        Landlords pages, or view terminated accounts in the sidebar.
-      </p>
-    </div>
+            {pagination.pages > 1 && (
+              <div className="mt-6 flex items-center justify-between">
+                <div className="text-sm text-gray-500">
+                  Page {pagination.page} of {pagination.pages} · {pagination.total} total
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => loadUsers(pagination.page - 1)}
+                    disabled={pagination.page <= 1 || loading}
+                    className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => loadUsers(pagination.page + 1)}
+                    disabled={pagination.page >= pagination.pages || loading}
+                    className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        <p className="mt-6 text-xs text-gray-500">
+          To soft-disable an account while keeping audit history, use Terminate on the Tenants or
+          Landlords pages, or view terminated accounts in the sidebar.
+        </p>
+      </SettingsSection>
+    </PagePermissionWrapper>
   );
 }

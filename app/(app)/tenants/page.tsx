@@ -5,8 +5,9 @@ import { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import { useUsersService, type User } from '../../services/users/users.service';
 import { useAuth } from '../../context/AuthContext';
-import { isKhayalamiAdminRole } from '../../lib/portals';
+import { usePermissions } from '../../services/permissions/usePermissions';
 import AdminTerminateAccountModal from '../../components/AdminTerminateAccountModal';
+import PagePermissionWrapper from '../../components/PagePermissionWrapper';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,8 +23,9 @@ export default function TenantsPage() {
   
   const { getTenants, terminateUser } = useUsersService();
   const { loading: authLoading, user: authUser, logout } = useAuth();
+  const { hasPermission } = usePermissions();
   const [terminateTarget, setTerminateTarget] = useState<User | null>(null);
-  const canTerminate = isKhayalamiAdminRole(authUser?.role);
+  const canTerminate = hasPermission('khayalami.users.terminate');
 
   useEffect(() => {
     // Don't make API calls while auth is loading
@@ -126,6 +128,7 @@ export default function TenantsPage() {
   }
 
   return (
+    <PagePermissionWrapper permission="khayalami.users.view" skeletonType="table">
     <div className="h-screen bg-gray-50 flex flex-col">
       <AdminTerminateAccountModal
         open={!!terminateTarget}
@@ -302,5 +305,6 @@ export default function TenantsPage() {
         </div>
       </div>
     </div>
+    </PagePermissionWrapper>
   );
 }

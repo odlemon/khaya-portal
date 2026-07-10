@@ -1,4 +1,6 @@
 // @ts-nocheck
+import type { PortalType, SessionUser, StaffRoleRef } from '../../types/staffSession';
+
 export interface RegisterData {
   firmName: string;
   email: string;
@@ -13,36 +15,46 @@ export interface LoginData {
   password: string;
 }
 
+export interface ChangePasswordData {
+  newPassword: string;
+  confirmPassword: string;
+  currentPassword?: string;
+}
+
+export interface AuthUserPayload {
+  id?: string;
+  userId?: string;
+  _id?: string;
+  email: string;
+  firstName?: string;
+  lastName?: string;
+  firmName?: string;
+  role?: string;
+  isSuperAdmin?: boolean;
+  mustChangePassword?: boolean;
+  portal?: PortalType;
+  staffRole?: StaffRoleRef | null;
+}
+
 export interface AuthResponse {
   success: boolean;
   message: string;
-  /** Backend error code (e.g. ACCOUNT_ADMIN_TERMINATED on 403 login). */
   code?: string;
   token?: string;
-  user?: {
-    id?: string;
-    email: string;
-    firstName?: string;
-    lastName?: string;
-    firmName?: string;
-    role?: string;
-  };
+  user?: AuthUserPayload;
+  permissions?: string[];
+  portal?: PortalType;
+  isSuperAdmin?: boolean;
+  mustChangePassword?: boolean;
+  staffRole?: StaffRoleRef | null;
   data?: {
     token?: string;
-    user?: {
-      _id?: string;
-      id?: string;
-      email: string;
-      firstName: string;
-      lastName: string;
-      firmName?: string;
-      role: string;
-      phone?: string;
-      isVerified?: boolean;
-      isActive?: boolean;
-      createdAt?: string;
-      updatedAt?: string;
-    };
+    user?: AuthUserPayload;
+    permissions?: string[];
+    portal?: PortalType;
+    isSuperAdmin?: boolean;
+    mustChangePassword?: boolean;
+    staffRole?: StaffRoleRef | null;
   };
   error?: string;
 }
@@ -52,17 +64,21 @@ export interface FirmInfo {
   name: string;
 }
 
-export interface UserDetailsData {
+export interface UserDetailsData extends AuthUserPayload {
   userId: string;
-  email: string;
   firstName: string;
   lastName: string;
   role: string;
-  firm: FirmInfo;
+  firm?: FirmInfo;
 }
 
 export type MeResponse = {
   success: boolean;
-  data: UserDetailsData;
+  data?: UserDetailsData;
   message?: string;
-}; 
+  permissions?: string[];
+  portal?: PortalType;
+  isSuperAdmin?: boolean;
+  mustChangePassword?: boolean;
+  staffRole?: StaffRoleRef | null;
+};
