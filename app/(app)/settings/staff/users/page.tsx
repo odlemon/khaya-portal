@@ -12,7 +12,6 @@ import SettingsModal, {
   settingsSelectClass,
 } from '../../../../components/settings/SettingsModal';
 import IconActionButton from '../../../../components/settings/IconActionButton';
-import { handleStaffCredentialsResponse } from '../../../../lib/downloadStaffCredentials';
 import {
   useStaffService,
   type StaffPortal,
@@ -117,20 +116,13 @@ export default function StaffUsersPage() {
         await updateStaffUser(editUser._id || editUser.id!, { staffRoleId });
         toast.success('Staff user updated');
       } else {
-        const data = await createStaffUser({
+        await createStaffUser({
           firstName: firstName.trim(),
           lastName: lastName.trim(),
           email: email.trim(),
           staffRoleId,
         });
-        const credsMsg = handleStaffCredentialsResponse(data);
-        if (credsMsg) {
-          toast.success(credsMsg, { duration: 6000 });
-        } else if (data?.emailSent) {
-          toast.success('Staff user created. Credentials emailed.');
-        } else {
-          toast.success('Staff user created.');
-        }
+        toast.success('Staff user created.');
       }
       setModalOpen(false);
       load();
@@ -169,15 +161,8 @@ export default function StaffUsersPage() {
     const id = confirmReset._id || confirmReset.id!;
     setResettingId(id);
     try {
-      const data = await resetStaffPassword(id);
-      const credsMsg = handleStaffCredentialsResponse(data);
-      if (credsMsg) {
-        toast.success(credsMsg, { duration: 6000 });
-      } else if (data?.emailSent) {
-        toast.success('Temporary password emailed.');
-      } else {
-        toast.success('Password reset.');
-      }
+      await resetStaffPassword(id);
+      toast.success('Password reset.');
       setConfirmReset(null);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Reset failed');
@@ -277,7 +262,7 @@ export default function StaffUsersPage() {
                         <IconActionButton
                           onClick={() => setConfirmReset(u)}
                           disabled={!!resettingId}
-                          title="Reset password (download credentials)"
+                          title="Reset password"
                           variant="warning"
                         >
                           <KeyRound className="h-4 w-4" />
@@ -310,7 +295,7 @@ export default function StaffUsersPage() {
           subtitle={
             editUser
               ? 'Update the assigned role for this staff member.'
-              : 'A temporary password will be downloaded as a .txt file (and emailed if delivery works).'
+              : 'A temporary password will be generated for this staff member.'
           }
           maxWidth="md"
           closeDisabled={saving}
@@ -459,15 +444,14 @@ export default function StaffUsersPage() {
                 disabled={!!resettingId}
                 className="rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-50"
               >
-                {resettingId ? 'Resetting…' : 'Reset & download'}
+                {resettingId ? 'Resetting…' : 'Reset password'}
               </button>
             </>
           }
         >
           <p className="text-sm text-gray-600">
-            A credentials <code className="text-xs">.txt</code> file will download so you can share
-            the temporary password securely. The staff member must change it on first login. The
-            password is not shown on this page.
+            A new temporary password will be generated. The staff member must change it on first
+            login.
           </p>
         </SettingsModal>
       </SettingsSection>
