@@ -1,5 +1,14 @@
+export type NotificationGroup = 'messages' | 'actions';
+
 export interface NotificationData {
   chatId?: string;
+  messageId?: string;
+  landlordId?: string;
+  propertyId?: string;
+  userId?: string;
+  agreementId?: string;
+  role?: string;
+  path?: string;
   suppressBanner?: boolean;
   [key: string]: unknown;
 }
@@ -9,6 +18,7 @@ export interface AppNotification {
   title: string;
   body: string;
   type?: string;
+  group?: NotificationGroup;
   read?: boolean;
   isRead?: boolean;
   data?: NotificationData;
@@ -19,7 +29,8 @@ export interface AppNotification {
 export interface NotificationsListResponse {
   success: boolean;
   data: {
-    notifications: AppNotification[];
+    items?: AppNotification[];
+    notifications?: AppNotification[];
     pagination?: {
       page: number;
       limit: number;
@@ -29,9 +40,27 @@ export interface NotificationsListResponse {
   };
 }
 
+export interface UnreadByGroup {
+  messages: number;
+  actions: number;
+}
+
+export interface UnreadCountData {
+  unreadCount: number;
+  byGroup: UnreadByGroup;
+}
+
 export interface UnreadCountResponse {
   success: boolean;
   data: {
-    count: number;
+    unreadCount?: number;
+    count?: number;
+    unread?: number;
+    byGroup?: Partial<UnreadByGroup>;
   };
+}
+
+export interface FetchNotificationsOptions {
+  group?: NotificationGroup;
+  unreadOnly?: boolean;
 }

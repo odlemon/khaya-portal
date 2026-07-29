@@ -1,5 +1,8 @@
 import { socketService } from '@/app/lib/socket';
-import { parseNotificationPayload } from '@/app/lib/notificationPayload';
+import {
+  parseNotificationPayload,
+  resolveNotificationGroup,
+} from '@/app/lib/notificationPayload';
 import { useChatStore } from '@/app/store/chatStore';
 import { useNotificationStore } from '@/app/store/notificationStore';
 import type { Message } from '@/app/services/chat/types';
@@ -56,12 +59,17 @@ export function ensureRealtimeListeners() {
       }
       return;
     }
+    const group = resolveNotificationGroup(notification);
     if (process.env.NODE_ENV === 'development') {
-      console.log('[portal] notification_created', notification._id);
+      console.log('[portal] notification_created', notification._id, group);
     }
+    // Only suppress messages-group badge when already viewing that chat thread.
+    // new_message updates chatStore separately and must not bump this badge.
     const activeChatId = useChatStore.getState().activeChatId;
     const suppress =
-      notification.data?.chatId != null && notification.data.chatId === activeChatId;
+      group === 'messages' &&
+      notification.data?.chatId != null &&
+      notification.data.chatId === activeChatId;
     useNotificationStore.getState().addNotification(notification, { suppressBadge: suppress });
   };
 

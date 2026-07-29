@@ -5,6 +5,8 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useChatStore } from '@/app/store/chatStore';
 import { useSearchParams } from 'next/navigation';
 import { formatDistanceToNow } from 'date-fns';
+import { FileText } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 import { useAuth } from '@/app/context/AuthContext';
 import { socketService } from '@/app/lib/socket';
 import {
@@ -13,6 +15,9 @@ import {
   roleBadgeClasses,
   roleLabel,
 } from '@/app/lib/chatDisplay';
+import CreateAgreementModal, {
+  type CreateAgreementPreset,
+} from '@/app/components/agreements/CreateAgreementModal';
 
 export default function MessagesPage() {
   const { token, user } = useAuth();
@@ -40,10 +45,27 @@ export default function MessagesPage() {
   const [cursorPosition, setCursorPosition] = useState(0);
   const [chatLoading, setChatLoading] = useState(false);
   const [isChatListOpen, setIsChatListOpen] = useState(false);
+  const [showCreateAgreement, setShowCreateAgreement] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isTypingRef = useRef(false);
+
+  const agreementPreset: CreateAgreementPreset | null = (() => {
+    if (!currentChat) return null;
+    const landlord = currentChat.participants?.find((p) => p.role === 'landlord');
+    const tenant = currentChat.participants?.find((p) => p.role === 'tenant');
+    const propertyId = currentChat.propertyId?._id;
+    if (!landlord?._id || !tenant?._id || !propertyId) return null;
+    return {
+      landlordId: landlord._id,
+      tenantId: tenant._id,
+      propertyId,
+      landlordName: `${landlord.firstName || ''} ${landlord.lastName || ''}`.trim(),
+      tenantName: `${tenant.firstName || ''} ${tenant.lastName || ''}`.trim(),
+      propertyTitle: currentChat.propertyId?.title,
+    };
+  })();
 
   useEffect(() => {
     if (!token) return;
@@ -512,7 +534,7 @@ export default function MessagesPage() {
                 </div>
               </div>
             ) : currentChat ? (
-              <>
+              <div className="relative flex-1 flex flex-col min-h-0 h-full">
                 {/* Chat Header */}
                 <div className="bg-white/80 backdrop-blur-xl border-b border-gray-200/50 px-4 py-3 flex-shrink-0">
                   <div className="flex items-center space-x-3">
@@ -755,7 +777,19 @@ export default function MessagesPage() {
                     </div>
                   </div>
                 </div>
-              </>
+
+                {agreementPreset && (
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateAgreement(true)}
+                    title="Create agreement for this chat"
+                    aria-label="Create agreement for this chat"
+                    className="absolute top-20 right-4 z-20 flex h-12 w-12 items-center justify-center rounded-full bg-blue-500 text-white shadow-lg shadow-blue-500/30 hover:bg-blue-600 hover:scale-105 active:scale-95 transition-all"
+                  >
+                    <FileText className="w-5 h-5" />
+                  </button>
+                )}
+              </div>
             ) : (
               /* Chat Error State */
               <div className="flex-1 flex items-center justify-center bg-gray-50">
@@ -810,6 +844,17 @@ export default function MessagesPage() {
           )}
         </div>
       </div>
+
+      <CreateAgreementModal
+        open={showCreateAgreement}
+        onClose={() => setShowCreateAgreement(false)}
+        preset={agreementPreset ?? undefined}
+        onSuccess={() => {
+          toast.success(
+            'Agreement created successfully! Both landlord and tenant will receive email notifications.'
+          );
+        }}
+      />
     </div>
   );
 }

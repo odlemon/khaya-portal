@@ -1,4 +1,31 @@
-import type { AppNotification } from '@/app/services/notifications/notifications.types';
+import type {
+  AppNotification,
+  NotificationGroup,
+  UnreadByGroup,
+  UnreadCountData,
+} from '@/app/services/notifications/notifications.types';
+
+const MESSAGE_TYPES = new Set([
+  'new_message',
+  'viewing_request',
+  'move_in_request',
+  'viewing_response',
+  'move_in_response',
+  'chat',
+  'chat_notification',
+]);
+
+/** Map legacy rows (no group) by type: chat-ish → messages, else → actions. */
+export function inferGroupFromType(type?: string): NotificationGroup {
+  if (!type) return 'actions';
+  if (MESSAGE_TYPES.has(type)) return 'messages';
+  return 'actions';
+}
+
+export function resolveNotificationGroup(n: AppNotification): NotificationGroup {
+  if (n.group === 'messages' || n.group === 'actions') return n.group;
+  return inferGroupFromType(n.type);
+}
 
 /** Normalize socket/API notification payloads (wrapped or raw). */
 export function parseNotificationPayload(payload: unknown): AppNotification | null {
@@ -16,16 +43,49 @@ export function parseNotificationPayload(payload: unknown): AppNotification | nu
   return null;
 }
 
-/** Backend may return unreadCount, count, or unread. */
-export function parseUnreadCount(data: unknown): number {
-  if (!data || typeof data !== 'object') return 0;
+/** Backend may return unreadCount + byGroup, or legacy count/unread. */
+export function parseUnreadCount(data: unknown): UnreadCountData {
+  const empty: UnreadCountData = {
+    unreadCount: 0,
+    byGroup: { messages: 0, actions: 0 },
+  };
+
+  if (!data || typeof data !== 'object') return empty;
   const d = data as Record<string, unknown>;
   const inner = d.data && typeof d.data === 'object' ? (d.data as Record<string, unknown>) : d;
 
-  if (typeof inner.unreadCount === 'number') return inner.unreadCount;
-  if (typeof inner.count === 'number') return inner.count;
-  if (typeof inner.unread === 'number') return inner.unread;
-  return 0;
+  const byGroupRaw =
+    inner.byGroup && typeof inner.byGroup === 'object'
+      ? (inner.byGroup as Partial<UnreadByGroup>)
+      : {};
+
+  const byGroup: UnreadByGroup = {
+    messages: typeof byGroupRaw.messages === 'number' ? byGroupRaw.messages : 0,
+    actions: typeof byGroupRaw.actions === 'number' ? byGroupRaw.actions : 0,
+  };
+
+  let unreadCount = 0;
+  if (typeof inner.unreadCount === 'number') {
+    unreadCount = inner.unreadCount;
+  } else if (typeof inner.count === 'number') {
+    unreadCount = inner.count;
+  } else if (typeof inner.unread === 'number') {
+    unreadCount = inner.unread;
+  } else {
+    unreadCount = byGroup.messages + byGroup.actions;
+  }
+
+  // Legacy total-only response: put all unread under actions so badges still work
+  if (
+    byGroup.messages === 0 &&
+    byGroup.actions === 0 &&
+    unreadCount > 0 &&
+    !inner.byGroup
+  ) {
+    byGroup.actions = unreadCount;
+  }
+
+  return { unreadCount, byGroup };
 }
 
 /** Backend may return items[] or notifications[]. */

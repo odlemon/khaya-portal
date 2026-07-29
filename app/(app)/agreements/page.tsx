@@ -4,7 +4,8 @@
 import { useState, useEffect } from 'react';
 import { useAgreementsService, type Agreement } from '../../services/agreements/agreements.service';
 import { useAuth } from '../../context/AuthContext';
-import { Plus, X, Search as SearchIcon } from 'lucide-react';
+import { Plus, Search as SearchIcon } from 'lucide-react';
+import CreateAgreementModal from '@/app/components/agreements/CreateAgreementModal';
 
 // Signature Image Component with Loading State
 function SignatureImage({ src, alt }: { src: string; alt: string }) {
@@ -58,265 +59,36 @@ export default function AgreementsPage() {
   const [itemsPerPage] = useState(10);
   const [selectedAgreement, setSelectedAgreement] = useState<Agreement | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [creating, setCreating] = useState(false);
   
-  // Form state
-  const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    landlordId: '',
-    tenantId: '',
-    propertyId: '',
-    rentAmount: '',
-    depositAmount: '',
-    startDate: '',
-    endDate: '',
-    zeroDeposit: false,
-    utilitiesIncluded: false,
-    utilitiesList: [] as string[],
-    maintenanceIncluded: false,
-    paymentFrequency: 'monthly',
-    paymentDueDay: '1',
-    lateFee: '',
-    gracePeriod: '',
-    terms: [] as string[],
-    specialConditions: [] as string[],
-  });
-
-  // Data for dropdowns - using connected parties structure
-  const [connectedParties, setConnectedParties] = useState<any>(null);
-  const [selectedLandlord, setSelectedLandlord] = useState<any>(null);
-  const [selectedProperty, setSelectedProperty] = useState<any>(null);
-  const [availableTenants, setAvailableTenants] = useState<any[]>([]);
-  const [loadingData, setLoadingData] = useState(false);
-  
-  const { getAgreements, createAgreement, getConnectedParties } = useAgreementsService();
+  const { getAgreements } = useAgreementsService();
   const { loading: authLoading } = useAuth();
 
-  useEffect(() => {
-    // Don't make API calls while auth is loading
-    if (authLoading) {
-      return;
-    }
-
-    const fetchAgreements = async () => {
-      try {
-        setLoading(true);
-        const response = await getAgreements(); // Use new endpoint
-        if (response?.success) {
-          setAllAgreements(response.data);
-        } else {
-          setError('Failed to fetch agreements');
-        }
-      } catch (err) {
-        setError('Error loading agreements');
-        console.error('Error fetching agreements:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchAgreements();
-  }, [getAgreements, authLoading]);
-
-  // Fetch connected parties when modal opens
-  useEffect(() => {
-    if (showCreateModal && !authLoading) {
-      fetchConnectedParties();
-    }
-  }, [showCreateModal, authLoading]);
-
-  // Update selected landlord when formData.landlordId changes
-  useEffect(() => {
-    if (formData.landlordId && connectedParties?.data?.landlords) {
-      const landlord = connectedParties.data.landlords.find((l: any) => l.id === formData.landlordId);
-      setSelectedLandlord(landlord || null);
-    } else {
-      setSelectedLandlord(null);
-    }
-  }, [formData.landlordId, connectedParties]);
-
-  // Update selected property and auto-select tenant when property is selected
-  useEffect(() => {
-    if (formData.propertyId && selectedLandlord) {
-      const property = selectedLandlord.properties.find((p: any) => p.id === formData.propertyId);
-      setSelectedProperty(property || null);
-      if (property && property.tenants && property.tenants.length > 0) {
-        setAvailableTenants(property.tenants);
-        // Auto-select the first connected tenant
-        if (property.tenants.length === 1) {
-          setFormData(prev => ({ ...prev, tenantId: property.tenants[0].id }));
-        } else if (!formData.tenantId || !property.tenants.find((t: any) => t.id === formData.tenantId)) {
-          // If multiple tenants, select the first one by default
-          setFormData(prev => ({ ...prev, tenantId: property.tenants[0].id }));
-        }
-      } else {
-        setAvailableTenants([]);
-        setFormData(prev => ({ ...prev, tenantId: '' }));
-      }
-    } else {
-      setSelectedProperty(null);
-      setAvailableTenants([]);
-      setFormData(prev => ({ ...prev, tenantId: '' }));
-    }
-  }, [formData.propertyId, selectedLandlord]);
-
-  const fetchConnectedParties = async () => {
+  const fetchAgreements = async () => {
     try {
-      setLoadingData(true);
-      const response = await getConnectedParties();
-      
+      setLoading(true);
+      const response = await getAgreements();
       if (response?.success) {
-        setConnectedParties(response);
+        setAllAgreements(response.data);
       } else {
-        setError('Failed to fetch connected parties');
+        setError('Failed to fetch agreements');
       }
     } catch (err) {
-      console.error('Error fetching connected parties:', err);
-      setError('Error loading connected parties');
+      setError('Error loading agreements');
+      console.error('Error fetching agreements:', err);
     } finally {
-      setLoadingData(false);
+      setLoading(false);
     }
   };
 
-  const handleCreateAgreement = async () => {
-    // Basic validation
-    if (!formData.title || !formData.landlordId || !formData.tenantId || !formData.propertyId) {
-      setError('Please fill in all required fields');
-      return;
-    }
+  useEffect(() => {
+    if (authLoading) return;
+    fetchAgreements();
+  }, [getAgreements, authLoading]);
 
-    if (!formData.startDate || !formData.endDate) {
-      setError('Please select start and end dates');
-      return;
-    }
-
-    if (new Date(formData.startDate) >= new Date(formData.endDate)) {
-      setError('End date must be after start date');
-      return;
-    }
-
-    if (!formData.rentAmount || parseFloat(formData.rentAmount) <= 0) {
-      setError('Rent amount must be greater than 0');
-      return;
-    }
-
-    if (formData.zeroDeposit && parseFloat(formData.depositAmount) !== 0) {
-      setError('Deposit amount must be 0 when zero deposit is enabled');
-      return;
-    }
-
-    // Validate tenant is connected to selected property
-    if (!formData.tenantId) {
-      setError('No tenant found for the selected property. Please ensure the property has a connected tenant.');
-      return;
-    }
-
-    if (selectedProperty && !selectedProperty.tenants.find((t: any) => t.id === formData.tenantId)) {
-      setError('Selected tenant is not connected to the selected property');
-      return;
-    }
-
-    try {
-      setCreating(true);
-      setError(null);
-      
-      const agreementPayload: any = {
-        landlordId: formData.landlordId,
-        tenantId: formData.tenantId,
-        propertyId: formData.propertyId,
-        title: formData.title,
-        startDate: new Date(formData.startDate).toISOString(),
-        endDate: new Date(formData.endDate).toISOString(),
-        rentAmount: parseFloat(formData.rentAmount),
-        depositAmount: parseFloat(formData.depositAmount) || 0,
-        zeroDeposit: formData.zeroDeposit,
-      };
-
-      // Add optional fields
-      if (formData.description) {
-        agreementPayload.description = formData.description;
-      }
-
-      if (formData.utilitiesIncluded) {
-        agreementPayload.utilitiesIncluded = formData.utilitiesIncluded;
-        if (formData.utilitiesList.length > 0) {
-          agreementPayload.utilitiesList = formData.utilitiesList;
-        }
-      }
-
-      if (formData.maintenanceIncluded) {
-        agreementPayload.maintenanceIncluded = formData.maintenanceIncluded;
-      }
-
-      // Payment schedule
-      if (formData.paymentFrequency || formData.paymentDueDay || formData.lateFee || formData.gracePeriod) {
-        agreementPayload.paymentSchedule = {
-          frequency: formData.paymentFrequency,
-          dueDay: parseInt(formData.paymentDueDay) || 1,
-        };
-        if (formData.lateFee) {
-          agreementPayload.paymentSchedule.lateFee = parseFloat(formData.lateFee);
-        }
-        if (formData.gracePeriod) {
-          agreementPayload.paymentSchedule.gracePeriod = parseInt(formData.gracePeriod);
-        }
-      }
-
-      // Terms and conditions
-      if (formData.terms.length > 0) {
-        agreementPayload.terms = formData.terms;
-      }
-
-      if (formData.specialConditions.length > 0) {
-        agreementPayload.specialConditions = formData.specialConditions;
-      }
-
-      const response = await createAgreement(agreementPayload);
-      
-      if (response?.success) {
-        setSuccessMessage('Agreement created successfully! Both landlord and tenant will receive email notifications.');
-        setShowCreateModal(false);
-        // Reset form
-        setFormData({
-          title: '',
-          description: '',
-          landlordId: '',
-          tenantId: '',
-          propertyId: '',
-          rentAmount: '',
-          depositAmount: '',
-          startDate: '',
-          endDate: '',
-          zeroDeposit: false,
-          utilitiesIncluded: false,
-          utilitiesList: [],
-          maintenanceIncluded: false,
-          paymentFrequency: 'monthly',
-          paymentDueDay: '1',
-          lateFee: '',
-          gracePeriod: '',
-          terms: [],
-          specialConditions: [],
-        });
-        setSelectedLandlord(null);
-        setSelectedProperty(null);
-        setAvailableTenants([]);
-        // Refresh agreements list
-        const agreementsRes = await getAgreements();
-        if (agreementsRes?.success) {
-          setAllAgreements(agreementsRes.data);
-        }
-        setTimeout(() => setSuccessMessage(null), 5000);
-      } else {
-        setError('Failed to create agreement');
-      }
-    } catch (err) {
-      console.error('Error creating agreement:', err);
-      setError(err instanceof Error ? err.message : 'Failed to create agreement');
-    } finally {
-      setCreating(false);
-    }
+  const handleCreateSuccess = async () => {
+    setSuccessMessage('Agreement created successfully! Both landlord and tenant will receive email notifications.');
+    await fetchAgreements();
+    setTimeout(() => setSuccessMessage(null), 5000);
   };
 
   // Filter agreements based on search term
@@ -339,10 +111,9 @@ export default function AgreementsPage() {
       );
       setFilteredAgreements(filtered);
     }
-    setCurrentPage(1); // Reset to first page when searching
+    setCurrentPage(1);
   }, [searchTerm, allAgreements]);
 
-  // Calculate pagination
   const totalPages = Math.ceil(filteredAgreements.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
@@ -386,7 +157,6 @@ export default function AgreementsPage() {
   return (
     <div className="flex-1 flex flex-col bg-gray-50 min-h-screen">
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* iOS-style Header */}
         <div className="bg-white/80 backdrop-blur-xl border-b border-gray-200/50 px-4 sm:px-6 py-4 sticky top-0 z-10">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div className="flex-1 min-w-0">
@@ -421,7 +191,6 @@ export default function AgreementsPage() {
           </div>
         </div>
 
-        {/* iOS-style Content */}
         <div className="flex-1 overflow-hidden">
           {error && (
             <div className="mx-4 sm:mx-6 mt-4 bg-red-50/80 backdrop-blur-sm border border-red-200/50 rounded-2xl p-4">
@@ -494,7 +263,6 @@ export default function AgreementsPage() {
                     </div>
                     
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                      {/* Tenant */}
                       <div className="flex items-center gap-3 p-3 bg-blue-50/50 rounded-xl">
                         <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center flex-shrink-0">
                           <span className="text-white font-medium text-xs sm:text-sm">
@@ -509,7 +277,6 @@ export default function AgreementsPage() {
                         </div>
                       </div>
 
-                      {/* Landlord */}
                       <div className="flex items-center gap-3 p-3 bg-green-50/50 rounded-xl">
                         <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center flex-shrink-0">
                           <span className="text-white font-medium text-xs sm:text-sm">
@@ -525,7 +292,6 @@ export default function AgreementsPage() {
                       </div>
                     </div>
 
-                    {/* Property Info */}
                     <div className="mt-4 p-3 bg-gray-50/50 rounded-xl">
                       <div className="flex items-center gap-2 mb-2">
                         <svg className="w-4 h-4 text-gray-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -548,7 +314,6 @@ export default function AgreementsPage() {
           )}
         </div>
 
-        {/* Pagination */}
         {totalPages > 1 && (
           <div className="bg-white border-t border-gray-200/60 px-4 sm:px-6 py-4">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -579,11 +344,9 @@ export default function AgreementsPage() {
         )}
       </div>
 
-      {/* iOS-style Agreement Details Modal */}
       {selectedAgreement && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 z-50">
           <div className="bg-white rounded-2xl sm:rounded-3xl max-w-7xl w-full max-h-[98vh] sm:max-h-[95vh] overflow-hidden shadow-2xl">
-            {/* iOS-style Header */}
             <div className="bg-gray-50/80 backdrop-blur-xl border-b border-gray-200/50 px-4 sm:px-6 py-4">
               <div className="flex justify-between items-start gap-4">
                 <div className="flex-1 min-w-0">
@@ -603,7 +366,6 @@ export default function AgreementsPage() {
             
             <div className="overflow-y-auto max-h-[calc(98vh-120px)] sm:max-h-[calc(95vh-120px)]">
               <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
-                {/* Agreement Overview */}
                 <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-4 sm:p-6">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-4">
                     <div className="flex items-center gap-3">
@@ -658,9 +420,7 @@ export default function AgreementsPage() {
                   </div>
                 </div>
 
-                {/* Parties Involved */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-                  {/* Tenant */}
                   <div className="bg-white border border-gray-200/50 rounded-2xl p-4 sm:p-6">
                     <div className="flex items-center gap-3 mb-4">
                       <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
@@ -681,7 +441,6 @@ export default function AgreementsPage() {
                     </div>
                   </div>
 
-                  {/* Landlord */}
                   <div className="bg-white border border-gray-200/50 rounded-2xl p-4 sm:p-6">
                     <div className="flex items-center gap-3 mb-4">
                       <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center">
@@ -703,7 +462,6 @@ export default function AgreementsPage() {
                   </div>
                 </div>
 
-                {/* Property Details */}
                 <div className="bg-white border border-gray-200/50 rounded-2xl p-4 sm:p-6">
                   <div className="flex items-center gap-3 mb-4">
                     <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center">
@@ -726,7 +484,6 @@ export default function AgreementsPage() {
                   </div>
                 </div>
 
-                {/* Signatures - Fixed to show actual signature images with loading */}
                 {(selectedAgreement.tenantSignature || selectedAgreement.landlordSignature) && (
                   <div className="bg-white border border-gray-200/50 rounded-2xl p-4 sm:p-6">
                     <div className="flex items-center gap-3 mb-4 sm:mb-6">
@@ -785,7 +542,6 @@ export default function AgreementsPage() {
                   </div>
                 )}
 
-                {/* Terms and Conditions */}
                 {selectedAgreement.terms && selectedAgreement.terms.length > 0 && (
                   <div className="bg-white border border-gray-200/50 rounded-2xl p-4 sm:p-6">
                     <div className="flex items-center gap-3 mb-4">
@@ -810,7 +566,6 @@ export default function AgreementsPage() {
                   </div>
                 )}
 
-                {/* Attachments */}
                 {selectedAgreement.attachments && selectedAgreement.attachments.length > 0 && (
                   <div className="bg-white border border-gray-200/50 rounded-2xl p-4 sm:p-6">
                     <div className="flex items-center gap-3 mb-4">
@@ -851,465 +606,11 @@ export default function AgreementsPage() {
         </div>
       )}
 
-      {/* Create Agreement Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 z-50">
-          <div className="bg-white rounded-2xl sm:rounded-3xl max-w-4xl w-full max-h-[98vh] sm:max-h-[95vh] overflow-hidden shadow-2xl">
-            {/* Header */}
-            <div className="bg-gray-50/80 backdrop-blur-xl border-b border-gray-200/50 px-4 sm:px-6 py-4">
-              <div className="flex justify-between items-center">
-                <div>
-                  <h2 className="text-lg sm:text-2xl font-bold text-gray-900">Create New Agreement</h2>
-                  <p className="text-sm text-gray-500 mt-1">Fill in the details to create a new rental agreement</p>
-                </div>
-                <button
-                    onClick={() => {
-                      setShowCreateModal(false);
-                      setError(null);
-                      setFormData({
-                        title: '',
-                        description: '',
-                        landlordId: '',
-                        tenantId: '',
-                        propertyId: '',
-                        rentAmount: '',
-                        depositAmount: '',
-                        startDate: '',
-                        endDate: '',
-                        zeroDeposit: false,
-                        utilitiesIncluded: false,
-                        utilitiesList: [],
-                        maintenanceIncluded: false,
-                        paymentFrequency: 'monthly',
-                        paymentDueDay: '1',
-                        lateFee: '',
-                        gracePeriod: '',
-                        terms: [],
-                        specialConditions: [],
-                      });
-                      setSelectedLandlord(null);
-                      setSelectedProperty(null);
-                      setAvailableTenants([]);
-                    }}
-                  className="w-8 h-8 rounded-full bg-gray-200/50 flex items-center justify-center hover:bg-gray-300/50 transition-colors flex-shrink-0"
-                >
-                  <X className="w-5 h-5 text-gray-600" />
-                </button>
-              </div>
-            </div>
-            
-            <div className="overflow-y-auto max-h-[calc(98vh-180px)] sm:max-h-[calc(95vh-180px)]">
-              <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
-                {/* Basic Information */}
-                <div className="bg-gray-50 rounded-2xl p-4 sm:p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Basic Information</h3>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Agreement Title <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.title}
-                        onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                        placeholder="e.g., Rental Agreement for 2BR Apartment"
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
-                      <textarea
-                        value={formData.description}
-                        onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                        placeholder="Agreement description..."
-                        rows={3}
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-black"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Parties */}
-                <div className="bg-gray-50 rounded-2xl p-4 sm:p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Parties</h3>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Landlord <span className="text-red-500">*</span>
-                    </label>
-                    {loadingData ? (
-                      <div className="px-4 py-2.5 border border-gray-300 rounded-xl bg-gray-100">
-                        <p className="text-sm text-gray-500">Loading landlords...</p>
-                      </div>
-                    ) : !connectedParties?.data?.landlords || connectedParties.data.landlords.length === 0 ? (
-                      <div className="px-4 py-2.5 border border-gray-300 rounded-xl bg-yellow-50">
-                        <p className="text-sm text-yellow-700">No landlords with connected tenants found</p>
-                      </div>
-                    ) : (
-                      <select
-                        value={formData.landlordId}
-                        onChange={(e) => {
-                          setFormData(prev => ({ ...prev, landlordId: e.target.value, propertyId: '', tenantId: '' }));
-                          setSelectedLandlord(null);
-                          setSelectedProperty(null);
-                          setAvailableTenants([]);
-                        }}
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
-                        required
-                      >
-                        <option value="">Select Landlord</option>
-                        {connectedParties.data.landlords.map((landlord: any) => (
-                          <option key={landlord.id} value={landlord.id}>
-                            {landlord.fullName} ({landlord.email}) - {landlord.properties?.length || 0} properties
-                          </option>
-                        ))}
-                      </select>
-                    )}
-                  </div>
-                  {formData.propertyId && selectedProperty && availableTenants.length > 0 && formData.tenantId && (
-                    <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-xl">
-                      <p className="text-sm font-medium text-blue-900 mb-1">Selected Tenant:</p>
-                      <p className="text-sm text-blue-700">
-                        {availableTenants.find((t: any) => t.id === formData.tenantId)?.fullName || 'Auto-selected from property connection'}
-                        {availableTenants.find((t: any) => t.id === formData.tenantId) && (
-                          <span className="text-blue-600"> ({availableTenants.find((t: any) => t.id === formData.tenantId)?.email})</span>
-                        )}
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Property */}
-                <div className="bg-gray-50 rounded-2xl p-4 sm:p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Property</h3>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Property <span className="text-red-500">*</span>
-                    </label>
-                    {loadingData ? (
-                      <div className="px-4 py-2.5 border border-gray-300 rounded-xl bg-gray-100">
-                        <p className="text-sm text-gray-500">Loading properties...</p>
-                      </div>
-                    ) : !formData.landlordId ? (
-                      <div className="px-4 py-2.5 border border-gray-300 rounded-xl bg-gray-100">
-                        <p className="text-sm text-gray-500">Please select a landlord first</p>
-                      </div>
-                    ) : !selectedLandlord || !selectedLandlord.properties || selectedLandlord.properties.length === 0 ? (
-                      <div className="px-4 py-2.5 border border-gray-300 rounded-xl bg-yellow-50">
-                        <p className="text-sm text-yellow-700">No properties with connected tenants found for selected landlord</p>
-                      </div>
-                    ) : (
-                      <select
-                        value={formData.propertyId}
-                        onChange={(e) => {
-                          setFormData(prev => ({ ...prev, propertyId: e.target.value, tenantId: '' }));
-                          setSelectedProperty(null);
-                          setAvailableTenants([]);
-                        }}
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
-                        required
-                      >
-                        <option value="">Select Property</option>
-                        {selectedLandlord.properties.map((property: any) => (
-                          <option key={property.id} value={property.id}>
-                            {property.title} - {property.address.street}, {property.address.city} ({property.tenants?.length || 0} connected tenants)
-                          </option>
-                        ))}
-                      </select>
-                    )}
-                    {selectedProperty && selectedProperty.tenants && selectedProperty.tenants.length > 0 && (
-                      <p className="text-xs text-gray-500 mt-2">
-                        {selectedProperty.tenants.length} tenant{selectedProperty.tenants.length !== 1 ? 's' : ''} connected to this property
-                        {selectedProperty.tenants.length === 1 && formData.tenantId && (
-                          <span className="text-green-600 ml-2">✓ Tenant auto-selected</span>
-                        )}
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Financial Details */}
-                <div className="bg-gray-50 rounded-2xl p-4 sm:p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Financial Details</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Monthly Rent Amount <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="number"
-                        value={formData.rentAmount}
-                        onChange={(e) => setFormData(prev => ({ ...prev, rentAmount: e.target.value }))}
-                        placeholder="0.00"
-                        min="0"
-                        step="0.01"
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Deposit Amount
-                      </label>
-                      <input
-                        type="number"
-                        value={formData.depositAmount}
-                        onChange={(e) => setFormData(prev => ({ ...prev, depositAmount: e.target.value }))}
-                        placeholder="0.00"
-                        min="0"
-                        step="0.01"
-                        disabled={formData.zeroDeposit}
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed text-black"
-                      />
-                    </div>
-                  </div>
-                  <div className="mt-4">
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={formData.zeroDeposit}
-                        onChange={(e) => {
-                          setFormData(prev => ({ 
-                            ...prev, 
-                            zeroDeposit: e.target.checked,
-                            depositAmount: e.target.checked ? '0' : prev.depositAmount
-                          }));
-                        }}
-                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                      />
-                      <span className="text-sm text-gray-700">Zero Deposit Protection</span>
-                    </label>
-                    {formData.zeroDeposit && (
-                      <p className="text-xs text-gray-500 mt-1 ml-6">Deposit amount will be set to 0</p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Dates */}
-                <div className="bg-gray-50 rounded-2xl p-4 sm:p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Agreement Period</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Start Date <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="date"
-                        value={formData.startDate}
-                        onChange={(e) => setFormData(prev => ({ ...prev, startDate: e.target.value }))}
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        End Date <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="date"
-                        value={formData.endDate}
-                        onChange={(e) => setFormData(prev => ({ ...prev, endDate: e.target.value }))}
-                        min={formData.startDate}
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
-                        required
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Payment Schedule */}
-                <div className="bg-gray-50 rounded-2xl p-4 sm:p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Payment Schedule</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Payment Frequency
-                      </label>
-                      <select
-                        value={formData.paymentFrequency}
-                        onChange={(e) => setFormData(prev => ({ ...prev, paymentFrequency: e.target.value }))}
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
-                      >
-                        <option value="monthly">Monthly</option>
-                        <option value="weekly">Weekly</option>
-                        <option value="bi-weekly">Bi-weekly</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Payment Due Day (1-31)
-                      </label>
-                      <input
-                        type="number"
-                        value={formData.paymentDueDay}
-                        onChange={(e) => setFormData(prev => ({ ...prev, paymentDueDay: e.target.value }))}
-                        min="1"
-                        max="31"
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Late Fee Amount
-                      </label>
-                      <input
-                        type="number"
-                        value={formData.lateFee}
-                        onChange={(e) => setFormData(prev => ({ ...prev, lateFee: e.target.value }))}
-                        placeholder="0.00"
-                        min="0"
-                        step="0.01"
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Grace Period (days)
-                      </label>
-                      <input
-                        type="number"
-                        value={formData.gracePeriod}
-                        onChange={(e) => setFormData(prev => ({ ...prev, gracePeriod: e.target.value }))}
-                        placeholder="0"
-                        min="0"
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Additional Options */}
-                <div className="bg-gray-50 rounded-2xl p-4 sm:p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Additional Options</h3>
-                  <div className="space-y-4">
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={formData.utilitiesIncluded}
-                        onChange={(e) => setFormData(prev => ({ ...prev, utilitiesIncluded: e.target.checked }))}
-                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                      />
-                      <span className="text-sm text-gray-700">Utilities Included</span>
-                    </label>
-                    {formData.utilitiesIncluded && (
-                      <div className="ml-6">
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Utilities List (comma-separated)
-                        </label>
-                        <input
-                          type="text"
-                          value={formData.utilitiesList.join(', ')}
-                          onChange={(e) => {
-                            const list = e.target.value.split(',').map(item => item.trim()).filter(item => item);
-                            setFormData(prev => ({ ...prev, utilitiesList: list }));
-                          }}
-                          placeholder="Water, Electricity, Internet"
-                          className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
-                        />
-                      </div>
-                    )}
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={formData.maintenanceIncluded}
-                        onChange={(e) => setFormData(prev => ({ ...prev, maintenanceIncluded: e.target.checked }))}
-                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                      />
-                      <span className="text-sm text-gray-700">Maintenance Included</span>
-                    </label>
-                  </div>
-                </div>
-
-                {/* Terms and Conditions */}
-                <div className="bg-gray-50 rounded-2xl p-4 sm:p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Terms and Conditions</h3>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Terms (one per line)
-                      </label>
-                      <textarea
-                        value={formData.terms.join('\n')}
-                        onChange={(e) => {
-                          const terms = e.target.value.split('\n').map(item => item.trim()).filter(item => item);
-                          setFormData(prev => ({ ...prev, terms }));
-                        }}
-                        placeholder="Enter terms, one per line..."
-                        rows={4}
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-black"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Special Conditions (one per line)
-                      </label>
-                      <textarea
-                        value={formData.specialConditions.join('\n')}
-                        onChange={(e) => {
-                          const conditions = e.target.value.split('\n').map(item => item.trim()).filter(item => item);
-                          setFormData(prev => ({ ...prev, specialConditions: conditions }));
-                        }}
-                        placeholder="Enter special conditions, one per line..."
-                        rows={4}
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-black"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Error Message */}
-                {error && (
-                  <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-                    <p className="text-red-800 text-sm">{error}</p>
-                  </div>
-                )}
-
-                {/* Action Buttons */}
-                <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
-                  <button
-                    onClick={() => {
-                      setShowCreateModal(false);
-                      setError(null);
-                      setFormData({
-                        title: '',
-                        description: '',
-                        landlordId: '',
-                        tenantId: '',
-                        propertyId: '',
-                        rentAmount: '',
-                        depositAmount: '',
-                        startDate: '',
-                        endDate: '',
-                        zeroDeposit: false,
-                        utilitiesIncluded: false,
-                        utilitiesList: [],
-                        maintenanceIncluded: false,
-                        paymentFrequency: 'monthly',
-                        paymentDueDay: '1',
-                        lateFee: '',
-                        gracePeriod: '',
-                        terms: [],
-                        specialConditions: [],
-                      });
-                    }}
-                    className="px-6 py-2.5 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors"
-                    disabled={creating}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleCreateAgreement}
-                    disabled={creating}
-                    className="px-6 py-2.5 bg-blue-500 text-white hover:bg-blue-600 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {creating ? 'Creating...' : 'Create Agreement'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <CreateAgreementModal
+        open={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onSuccess={handleCreateSuccess}
+      />
     </div>
   );
 }
