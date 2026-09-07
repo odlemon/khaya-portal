@@ -28,6 +28,9 @@ interface DocumentInfo {
   uploadedAt: string;
   verified: boolean;
   selfieUrl?: string;
+  // Selfie taken while holding the ID document. The mobile app uploads this
+  // alongside selfieUrl and the backend returns it, so it must be reviewable here.
+  selfieWithIdUrl?: string;
 }
 
 interface DocumentUrls {
@@ -242,6 +245,24 @@ function IncomingRequestsPageInner() {
       </div>
     );
   };
+
+  // A labelled selfie preview with its own download link. Used for both the plain
+  // selfie and the selfie-holding-ID, so the two render identically.
+  const renderSelfieCell = (url: string, label: string, downloadLabel: string) => (
+    <div className="space-y-2">
+      <p className="text-sm font-medium text-gray-700">{label}</p>
+      {renderSelfiePreview(url, label)}
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-2 px-3 py-1 bg-green-100 text-green-700 text-sm font-medium rounded-lg hover:bg-green-200 transition-colors duration-200 w-full justify-center"
+      >
+        <Download className="w-4 h-4" />
+        {downloadLabel}
+      </a>
+    </div>
+  );
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -717,15 +738,18 @@ function IncomingRequestsPageInner() {
                           <FileText className="w-5 h-5 text-blue-500" />
                           <span className="font-medium text-gray-900">ID Document ({selectedRequest.documents.idDocument.type})</span>
                         </div>
-                        {selectedRequest.documents.idDocument.selfieUrl ? (
+                        {(selectedRequest.documents.idDocument.selfieUrl || selectedRequest.documents.idDocument.selfieWithIdUrl) ? (
                           (() => {
                             const idFileType = getFileType(selectedRequest.documents.idDocument.url);
                             const canShowSideBySide = idFileType === 'image' || idFileType === 'pdf';
-                            
+                            const selfieCount =
+                              (selectedRequest.documents.idDocument.selfieUrl ? 1 : 0) +
+                              (selectedRequest.documents.idDocument.selfieWithIdUrl ? 1 : 0);
+
                             if (canShowSideBySide) {
-                              // Show ID and selfie side by side
+                              // Show the ID alongside every selfie that was submitted
                               return (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className={`grid grid-cols-1 gap-4 ${selfieCount > 1 ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
                                   <div className="space-y-2">
                                     <p className="text-sm font-medium text-gray-700">ID Document</p>
                                     {renderIDPreview(selectedRequest.documents.idDocument.url, 'ID Document')}
@@ -739,38 +763,20 @@ function IncomingRequestsPageInner() {
                                       Download ID
                                     </a>
                                   </div>
-                                  <div className="space-y-2">
-                                    <p className="text-sm font-medium text-gray-700">Selfie</p>
-                                    {renderSelfiePreview(selectedRequest.documents.idDocument.selfieUrl, 'Selfie')}
-                                    <a
-                                      href={selectedRequest.documents.idDocument.selfieUrl}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="inline-flex items-center gap-2 px-3 py-1 bg-green-100 text-green-700 text-sm font-medium rounded-lg hover:bg-green-200 transition-colors duration-200 w-full justify-center"
-                                    >
-                                      <Download className="w-4 h-4" />
-                                      Download Selfie
-                                    </a>
-                                  </div>
+                                  {selectedRequest.documents.idDocument.selfieUrl &&
+                                    renderSelfieCell(selectedRequest.documents.idDocument.selfieUrl, 'Selfie', 'Download Selfie')}
+                                  {selectedRequest.documents.idDocument.selfieWithIdUrl &&
+                                    renderSelfieCell(selectedRequest.documents.idDocument.selfieWithIdUrl, 'Selfie with ID', 'Download Selfie with ID')}
                                 </div>
                               );
                             } else {
-                              // ID is DOCX or other format - show selfie and ID download separately
+                              // ID is DOCX or other format - show selfies and ID download separately
                               return (
                                 <div className="space-y-4">
-                                  <div className="space-y-2">
-                                    <p className="text-sm font-medium text-gray-700">Selfie</p>
-                                    {renderSelfiePreview(selectedRequest.documents.idDocument.selfieUrl, 'Selfie')}
-                                    <a
-                                      href={selectedRequest.documents.idDocument.selfieUrl}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="inline-flex items-center gap-2 px-3 py-1 bg-green-100 text-green-700 text-sm font-medium rounded-lg hover:bg-green-200 transition-colors duration-200 w-full justify-center"
-                                    >
-                                      <Download className="w-4 h-4" />
-                                      Download Selfie
-                                    </a>
-                                  </div>
+                                  {selectedRequest.documents.idDocument.selfieUrl &&
+                                    renderSelfieCell(selectedRequest.documents.idDocument.selfieUrl, 'Selfie', 'Download Selfie')}
+                                  {selectedRequest.documents.idDocument.selfieWithIdUrl &&
+                                    renderSelfieCell(selectedRequest.documents.idDocument.selfieWithIdUrl, 'Selfie with ID', 'Download Selfie with ID')}
                                   <div className="space-y-2">
                                     <p className="text-sm font-medium text-gray-700">ID Document</p>
                                     <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
