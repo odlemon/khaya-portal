@@ -17,6 +17,11 @@ export const khayalamiNavItems = [
   { name: 'Service Requests', path: '/services-requests', permission: 'khayalami.services.view' },
   { name: 'Terminated accounts', path: '/terminated-accounts', permission: 'khayalami.users.view' },
   { name: 'Settings', path: '/settings', permission: undefined },
+  // Sidebar.tsx picks sections out of this array by index (slice(1,5), [8], [9]…),
+  // so new entries must be appended here and placed into a section by path, never
+  // inserted in the middle — inserting silently shifts other items into the wrong
+  // section.
+  { name: 'Rented units', path: '/rented-units', permission: 'khayalami.properties.view' },
 ] as const;
 
 export const bankNavItems = [

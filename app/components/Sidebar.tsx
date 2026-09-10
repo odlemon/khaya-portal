@@ -89,6 +89,15 @@ const menuItems = [
     permission: "khayalami.maintenance.view",
     icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z",
   },
+  // Sections below are sliced out of this array by index (slice(1,5), [8], [9]…),
+  // so append new entries here and place them into a section by path. Inserting in
+  // the middle silently shifts other items into the wrong section.
+  {
+    name: "Rented units",
+    path: "/rented-units",
+    permission: "khayalami.properties.view",
+    icon: "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0h6",
+  },
 ];
 
 function getInitials(name: string, email?: string) {
@@ -242,9 +251,13 @@ export default function Sidebar() {
   );
 
   const showHome = navVisible('/dashboard');
-  const propertyItems = menuItems
-    .slice(1, 5)
-    .filter((item) => navVisible(item.path, item.permission));
+  // Sections below are sliced out of menuItems by index, so anything appended to
+  // the end of the nav config has to be pulled in by path rather than by position.
+  const rentedUnitsItem = menuItems.find((item) => item.path === '/rented-units');
+  const propertyItems = [
+    ...menuItems.slice(1, 5),
+    ...(rentedUnitsItem ? [rentedUnitsItem] : []),
+  ].filter((item) => navVisible(item.path, item.permission));
   const showTerminated = navVisible('/terminated-accounts');
   const showPropertySection = propertyItems.length > 0 || showTerminated;
   const paymentItems = menuItems
